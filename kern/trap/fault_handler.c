@@ -244,54 +244,56 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct
 	panic("get_optimal_num_faults() is not implemented yet...!!");
 }
 
+
 void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 {
 #if USE_KHEAP
-	struct WorkingSetElement *victimWSElement = NULL;
-	uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
-#else
-	int iWS =faulted_env->page_last_WS_index;
-	uint32 wsSize = env_page_ws_get_size(faulted_env);
-#endif
-	if(wsSize < (faulted_env->page_WS_max_size))
+	if (isPageReplacmentAlgorithmOPTIMAL())
 	{
-		//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
+		//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #1 Optimal Reference Stream
 		//Your code is here
 		//Comment the following line
-		panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+		panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
 	}
 	else
 	{
-		if (isPageReplacmentAlgorithmOPTIMAL())
+		struct WorkingSetElement *victimWSElement = NULL;
+		uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
+		if(wsSize < (faulted_env->page_WS_max_size))
 		{
-			//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #1 Optimal Reference Stream
+			//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
 			//Your code is here
 			//Comment the following line
-			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
 		}
-		else if (isPageReplacmentAlgorithmOPTIMAL())
+		else
 		{
-			//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #3 Clock Replacement
-			//Your code is here
-			//Comment the following line
-			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
-		}
-		else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX))
-		{
-			//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #2 LRU Aging Replacement
-			//Your code is here
-			//Comment the following line
-			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
-		}
-		else if (isPageReplacmentAlgorithmModifiedCLOCK())
-		{
-			//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
-			//Your code is here
-			//Comment the following line
-			panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			if (isPageReplacmentAlgorithmCLOCK())
+			{
+				//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #3 Clock Replacement
+				//Your code is here
+				//Comment the following line
+				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			}
+			else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX))
+			{
+				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #2 LRU Aging Replacement
+				//Your code is here
+				//Comment the following line
+				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			}
+			else if (isPageReplacmentAlgorithmModifiedCLOCK())
+			{
+				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
+				//Your code is here
+				//Comment the following line
+				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+			}
 		}
 	}
+#endif
 }
+
 
 void __page_fault_handler_with_buffering(struct Env * curenv, uint32 fault_va)
 {
