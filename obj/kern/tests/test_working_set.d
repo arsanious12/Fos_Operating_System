@@ -3,4 +3,5 @@ obj/kern/tests/test_working_set.o: kern/tests/test_working_set.c \
  inc/stdio.h inc/stdarg.h kern/proc/user_environment.h \
  inc/environment_definitions.h inc/queue.h inc/trap.h inc/memlayout.h \
  inc/fixed_point.h kern/proc/user_programs.h kern/cpu/sched_helpers.h \
- kern/proc/../conc/kspinlock.h kern/mem/working_set_manager.h
+ kern/proc/../conc/kspinlock.h kern/mem/working_set_manager.h \
+ kern/cpu/cpu.h kern/cpu/kclock.h

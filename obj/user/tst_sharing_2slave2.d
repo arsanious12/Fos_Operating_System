@@ -3,4 +3,4 @@ obj/user/tst_sharing_2slave2.o: user/tst_sharing_2slave2.c inc/lib.h \
  inc/error.h inc/assert.h inc/x86.h inc/mmu.h \
  inc/environment_definitions.h inc/trap.h inc/memlayout.h \
  inc/fixed_point.h inc/semaphore.h inc/syscall.h inc/uheap.h \
- inc/dynamic_allocator.h inc/uspinlock.h
+ inc/dynamic_allocator.h inc/uspinlock.h user/tst_malloc_helpers.h
