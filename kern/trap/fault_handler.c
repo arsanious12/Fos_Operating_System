@@ -286,9 +286,10 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				cprintf("Ah4\n");
 				/*if((faulted_env->ActiveList).size==0){
 					LIST_INIT(&(faulted_env->ActiveList));
-				}*/
+				}
 				struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
 				LIST_INSERT_TAIL(&(faulted_env->ActiveList),newElem);
+				*/
 			}
 		}
 		//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement

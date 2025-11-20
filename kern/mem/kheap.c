@@ -47,19 +47,51 @@ struct kheap_page kheap_pages[arrSize];
 //==============================================
 int get_page(void* va)
 {
-	int ret = alloc_page(ptr_page_directory, ROUNDDOWN((uint32)va, PAGE_SIZE), PERM_WRITEABLE, 1);
-	if (ret < 0)
-		panic("get_page() in kern: failed to allocate page from the kernel");
-	return 0;
+    uint32 page_va = ROUNDDOWN((uint32)va, PAGE_SIZE);
+
+    // Allocate the page in the page directory
+    int ret = alloc_page(ptr_page_directory, page_va, PERM_WRITEABLE, 1);
+    if (ret < 0)
+        return ret;
+
+    // Get the page table
+    uint32 *pt = NULL;
+    if (get_page_table(ptr_page_directory, page_va, &pt) == TABLE_NOT_EXIST || !pt)
+        panic("get_page: table missing after alloc_page!");
+
+    // Read the PTE (the ONLY correct source of truth)
+    uint32 pte = pt[PTX(page_va)];
+    uint32 frame_pa = pte & 0xFFFFF000;
+    uint32 fnum = frame_pa >> 12;
+
+    // Store reverse mapping (THIS was your bug!!)
+    kheap_address[fnum] = page_va;
+
+    return 0;
 }
+
+
 
 //==============================================
 // [3] RETURN A PAGE FROM THE DA TO KERNEL:
 //==============================================
 void return_page(void* va)
 {
-	unmap_frame(ptr_page_directory, ROUNDDOWN((uint32)va, PAGE_SIZE));
+    uint32 page_va = ROUNDDOWN((uint32)va, PAGE_SIZE);
+
+    uint32 *pt = NULL;
+    if (get_page_table(ptr_page_directory, page_va, &pt) == 0 && pt) {
+        uint32 pte = pt[PTX(page_va)];
+        if (pte & PERM_PRESENT) {
+            uint32 fnum = (pte & 0xFFFFF000) >> 12;
+            kheap_address[fnum] = 0;
+        }
+    }
+
+    unmap_frame(ptr_page_directory, page_va);
 }
+
+
 
 //==================================================================================//
 //============================ REQUIRED FUNCTIONS ==================================//
@@ -81,7 +113,8 @@ void kheap__aloc(uint32 startva,uint32 end,uint32 size,int flag){
         kheap_pages[(k - kheapPageAllocStart) / PAGE_SIZE].allocated = 1;
         kheap_pages[(k - kheapPageAllocStart) / PAGE_SIZE].size = size;
         kheap_pages[(k - kheapPageAllocStart) / PAGE_SIZE].va = startva;
-    	kheap_address[(kheap_physical_address(k)>>12)] = k;
+    	//kheap_address[(kheap_physical_address(k)>>12)] = k;
+
 
         // If I have 3KB allocated then what is the fit algo (worst or exact)
 	}
@@ -103,8 +136,9 @@ void* kmalloc(unsigned int size)
 	cprintf("Memory END ///////////////////////\n");*/
 	if (size <= DYN_ALLOC_MAX_BLOCK_SIZE) {
 		uint32 va = (uint32)alloc_block(size);
-		kheap_address[(kheap_physical_address(va)>>12)] = va;
-		cprintf("%x\n",va);
+		uint32 page_va = to_page_va(to_page_info(va));
+		//kheap_address[kheap_physical_address(page_va) >> 12] = page_va;
+		cprintf("blk va: %x, of pageVa: %x, idx in kadd: %d\n", va, page_va, kheap_physical_address(page_va) >> 12);
 		return (uint32 *)va;
 	}
 	else {
@@ -223,11 +257,11 @@ void kfree(void* virtual_address)
 	int page_cnt=0;
 	if(va >= dynAllocStart && va < dynAllocEnd){
 		struct PageInfoElement* elm = to_page_info(va);
-		if(kheap_physical_address(va) !=0){
-			if(elm->num_of_free_blocks+1 == PAGE_SIZE/elm->block_size){
-				kheap_address[kheap_physical_address(va)>>12] = 0;
-			}
+		/*
+		if(elm->num_of_free_blocks + 1 == PAGE_SIZE/elm->block_size){
+			kheap_address[kheap_physical_address(va)>>12] = 0;
 		}
+		*/
 		free_block(virtual_address);
 		return;
 	}
@@ -257,7 +291,7 @@ void kfree(void* virtual_address)
 	//m=j;
 
 	for(uint32 i=va;i < va + page_cnt*PAGE_SIZE;i += PAGE_SIZE){
-		kheap_address[(kheap_physical_address(i)>>12)] = 0;
+		//kheap_address[(kheap_physical_address(i)>>12)] = 0;
 		return_page((uint32*)i);
 		kheap_pages[(i - kheapPageAllocStart)/PAGE_SIZE].allocated=0;
 		kheap_pages[(i - kheapPageAllocStart)/PAGE_SIZE].va=0;
@@ -308,10 +342,11 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	//Comment the following line
 	uint32 offset=physical_address & 0xFFF;
 	uint32 fnum=physical_address>>12;
+	uint32 va = (kheap_address[fnum]&~0xFFF)|offset;
 	if(kheap_address[fnum]!=0){
-		//cprintf("pa: %x, va: %x\n",physical_address, (kheap_address[fnum]&~0xFFF)|offset);
-		return (kheap_address[fnum]&~0xFFF)|offset;
+		return va;
 	}
+
 	return 0;
 	/*for (uint32 i = 0; i < (1024 * 1024); i++){
 		cprintf("%d\n",i);
@@ -326,6 +361,7 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	/*EFFICIENT IMPLEMENTATION ~O(1) IS REQUIRED */
 }
 
+
 //=================================
 // [4] FIND PA OF GIVEN VA:
 //=================================
@@ -334,7 +370,7 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 	//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #4 kheap_physical_address
 	//Your code is here
 	//Comment the following line
-	if(kheapPageAllocStart <= virtual_address && kheapPageAllocBreak >virtual_address){
+	if(virtual_address >= kheapPageAllocStart && virtual_address < kheapPageAllocBreak){
 		uint32 *ptr_page_table = NULL;
 		int ret = get_page_table(ptr_page_directory, (uint32)virtual_address, &ptr_page_table);
 
@@ -347,23 +383,15 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 	}
 	else if(virtual_address >= dynAllocStart && virtual_address < dynAllocEnd){
 		struct PageInfoElement* elm = to_page_info(virtual_address);
-		if(elm->block_size == 0){
-			return 0;
-		}
-		/*uint32 allocatedBlocks = PAGE_SIZE/elm->block_size - elm->num_of_free_blocks;
-		uint32 allocatedSize = elm->block_size * allocatedBlocks; //offset*/
-		int idx = 0;
-		for (int i = LOG2_MIN_SIZE; i <= LOG2_MAX_SIZE; i++) {
-			if ((1 << i) == elm->block_size)
-				break;
-			 idx++;
-		}
-//		uint32 page_va = to_page_va(elm);
-//		uint32 endAddress = startAddress + (uint32)elm->num_of_free_blocks * (uint32)elm->block_size;
-//		if(elm->num_of_free_blocks == 0){
-//			endAddress += PAGE_SIZE;
-//		}
 
+		// if the page not available.
+		if(elm->block_size == 0) return 0;
+
+		uint32 allocStartAdd = to_page_va(elm);
+		uint32 allocEndAdd = allocStartAdd + PAGE_SIZE;
+
+		// if the block not allocated before
+		// if(virtual_address < allocStartAdd || virtual_address >= allocEndAdd) return 0;
 		uint32 *ptr_page_table = NULL;
 		int ret = get_page_table(ptr_page_directory, (uint32)virtual_address, &ptr_page_table);
 		if(ret == TABLE_NOT_EXIST){
@@ -372,6 +400,39 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 		}
 		uint32 pageFrameNum = ptr_page_table[PTX(virtual_address)]&(0xFFFFF000);
 		return (pageFrameNum | PGOFF(virtual_address));
+		/*
+		struct PageInfoElement* elm = to_page_info(virtual_address);
+		uint32 allocatedBlocks = PAGE_SIZE/elm->block_size - elm->num_of_free_blocks;
+		uint32 allocatedSize = elm->block_size * allocatedBlocks; //offset
+		int idx = 0;
+		for (int i = LOG2_MIN_SIZE; i <= LOG2_MAX_SIZE; i++) {
+			if ((1 << i) == elm->block_size)
+				break;
+			 idx++;
+		}
+		uint32 page_va = to_page_va(elm);
+		uint32 *ptr_page_table = NULL;
+		int ret = get_page_table(ptr_page_directory, (uint32)virtual_address, &ptr_page_table);
+		if(ret == TABLE_NOT_EXIST){
+			cprintf("TABLE_NOT_EXIST\n");
+			return 0;
+		}
+		uint32 startAddress = ROUNDDOWN(page_va, PAGE_SIZE);
+		uint32 endAddress = startAddress + (uint32)elm->block_size * (uint32)elm->num_of_free_blocks;
+		if(virtual_address >= startAddress && virtual_address < endAddress){
+			struct BlockElement* blk = LIST_FIRST(&freeBlockLists[idx]);
+			for (int i = 0; i < freeBlockLists[idx].size; ++i){
+				if((uint32)blk == virtual_address) return 0;
+				blk = LIST_NEXT(blk);
+			}
+			uint32 pageFrameNum = ptr_page_table[PTX(virtual_address)]&(0xFFFFF000);
+			return (pageFrameNum | PGOFF(virtual_address));
+
+		}
+		  if(elm->num_of_free_blocks == 0){
+			endAddress += PAGE_SIZE;
+		}
+		*/
 	}
 	return 0;
 
