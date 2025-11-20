@@ -48,25 +48,15 @@ struct kheap_page kheap_pages[arrSize];
 int get_page(void* va)
 {
     uint32 page_va = ROUNDDOWN((uint32)va, PAGE_SIZE);
-
-    // Allocate the page in the page directory
     int ret = alloc_page(ptr_page_directory, page_va, PERM_WRITEABLE, 1);
     if (ret < 0)
         return ret;
-
-    // Get the page table
-    uint32 *pt = NULL;
-    if (get_page_table(ptr_page_directory, page_va, &pt) == TABLE_NOT_EXIST || !pt)
+    uint32 *ptr = NULL;
+    if (get_page_table(ptr_page_directory, page_va, &ptr) == TABLE_NOT_EXIST)
         panic("get_page: table missing after alloc_page!");
 
-    // Read the PTE (the ONLY correct source of truth)
-    uint32 pte = pt[PTX(page_va)];
-    uint32 frame_pa = pte & 0xFFFFF000;
-    uint32 fnum = frame_pa >> 12;
-
-    // Store reverse mapping (THIS was your bug!!)
-    kheap_address[fnum] = page_va;
-
+    uint32 f_idx = (ptr[PTX(page_va)]& 0xFFFFF000)>>12;
+    kheap_address[f_idx] = page_va;
     return 0;
 }
 
@@ -79,13 +69,13 @@ void return_page(void* va)
 {
     uint32 page_va = ROUNDDOWN((uint32)va, PAGE_SIZE);
 
-    uint32 *pt = NULL;
-    if (get_page_table(ptr_page_directory, page_va, &pt) == 0 && pt) {
-        uint32 pte = pt[PTX(page_va)];
-        if (pte & PERM_PRESENT) {
-            uint32 fnum = (pte & 0xFFFFF000) >> 12;
-            kheap_address[fnum] = 0;
-        }
+    uint32 *ptr = NULL;
+    if (get_page_table(ptr_page_directory, page_va, &ptr) == TABLE_IN_MEMORY) {
+    	uint32 frame = ptr[PTX(page_va)];
+    	if(frame & PERM_PRESENT){
+    		uint32 f_idx = (frame & 0xFFFFF000) >> 12;
+    		kheap_address[f_idx] = 0;
+    	}
     }
 
     unmap_frame(ptr_page_directory, page_va);
