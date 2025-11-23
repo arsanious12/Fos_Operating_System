@@ -18,3 +18,7 @@
 
 # obj folders
 obj
+
+.bochsrc-debug
+.bochsrc
+.settings
