@@ -22,3 +22,16 @@ obj
 .bochsrc-debug
 .bochsrc
 .settings
+
+.cproject
+.gdbinit
+.project
+BIOS-bochs-latest
+BIOS-bochs-latest_2-3
+*.bat
+GNUmakefile
+*.pl
+stdout
+coding
+VGABIOS-lgpl-latest
+Readme_Project_Port_To_ModernGCC.txt
