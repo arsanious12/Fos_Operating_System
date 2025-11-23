@@ -270,5 +270,6 @@ void *realloc_block(void* va, uint32 new_size)
 	//TODO: [PROJECT'25.BONUS#2] KERNEL REALLOC - realloc_block
 	//Your code is here
 	//Comment the following line
+
 	panic("realloc_block() Not implemented yet");
 }

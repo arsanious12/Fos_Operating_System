@@ -51,9 +51,17 @@ inline void pt_set_page_permissions(uint32* directory, uint32 virtual_address, u
 //If the page table not exist, return -1
 inline int pt_get_page_permissions(uint32* directory, uint32 virtual_address )
 {
+	cprintf("pt_get_page_permissions\n");
+	uint32* ptr_page_table = NULL;
+	int ret = get_page_table(directory, virtual_address, &ptr_page_table);
+	if(ret == TABLE_IN_MEMORY){
+		return ptr_page_table[PTX(virtual_address)]&0x00000FFF;
+	}else {
+		return -1;
+	}
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("pt_get_page_permissions() is not implemented yet!");
+	//panic("pt_get_page_permissions() is not implemented yet!");
 }
 
 //===============================
@@ -65,9 +73,17 @@ inline int pt_get_page_permissions(uint32* directory, uint32 virtual_address )
 //REMEMBER: to invalidate the TLB cache
 inline void pt_clear_page_table_entry(uint32* directory, uint32 virtual_address)
 {
+	uint32* ptr_page_table = NULL;
+	int ret = get_page_table(directory, virtual_address, &ptr_page_table);
+	if(ret == TABLE_IN_MEMORY){
+		ptr_page_table[PTX(virtual_address)] = 0;
+	}else {
+		panic("table not exist in clear_page_table_entry\n");
+	}
+	tlb_invalidate(directory,(uint32 *)virtual_address);
 	//TODO: PRACTICE: fill this function.
 	//Comment the following line
-	panic("pt_clear_page_table_entry() is not implemented yet!");
+	//panic("pt_clear_page_table_entry() is not implemented yet!");
 }
 
 /***********************************************************************************************/

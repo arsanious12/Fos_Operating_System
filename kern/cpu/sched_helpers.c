@@ -380,7 +380,7 @@ void sched_exit_env(uint32 envId)
 	{
 		release_kspinlock(&ProcessQueues.qlock);
 	}
-	//cprintf("\n[SCHED_EXIT_ENV] release: lock status after = %d\n", qlock.locked);
+	cprintf("\n[SCHED_EXIT_ENV] releas\n");
 }
 
 

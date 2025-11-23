@@ -7,7 +7,6 @@
 void _main(void)
 {
 	int eval = 0;
-
 	cprintf_colored(TEXT_cyan, "%~PART I: Test the Pointer Validation inside fault_handler(): [70%]\n");
 	cprintf_colored(TEXT_cyan, "%~=================================================================\n");
 	rsttst();

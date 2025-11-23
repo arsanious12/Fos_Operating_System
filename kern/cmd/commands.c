@@ -622,6 +622,7 @@ struct Env * CreateEnv(int number_of_arguments, char **arguments)
 				cprintf("ERROR: Current Replacement is NOT LRU LISTS, invalid number of args\nUsage: <command> <prog_name> <page_WS_size> [<LRU_second_list_size>] [<BSD_Sched_Nice>]\naborting...\n");
 				return NULL;
 			}
+			cprintf("before testing building up the env....\n");
 			//percent_WS_pages_to_remove = strtol(arguments[4], NULL, 10);
 			if (isSchedMethodBSD())
 				BSDSchedNiceVal = strtol(arguments[4], NULL, 10);
