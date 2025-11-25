@@ -107,7 +107,34 @@ struct Share* alloc_share(int32 ownerID, char* shareName, uint32 size, uint8 isW
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #1 alloc_share
 	//Your code is here
 	//Comment the following line
-	panic("alloc_share() is not implemented yet...!!");
+	struct Share* ptr_shared_object = (struct Share*)kmalloc(sizeof(struct Share));
+
+	if(ptr_shared_object == NULL) return NULL;
+
+	ptr_shared_object->ID = (uint32)ptr_shared_object & ~(0x80000000);
+	ptr_shared_object->ownerID = ownerID;
+	int l = strlen(shareName);
+	for (int i = 0; i < l; ++i){
+		ptr_shared_object->name[i] = shareName[i];
+	}
+	ptr_shared_object->size = size;
+	ptr_shared_object->isWritable = isWritable;
+	ptr_shared_object->references = 1;
+
+	int framesCount = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+
+	ptr_shared_object->framesStorage = (struct FrameInfo**)kmalloc(framesCount * sizeof(struct frameInfo *));
+	if(ptr_shared_object->framesStorage == NULL) {
+		kfree(ptr_shared_object);
+		return NULL;
+	}
+
+	for (int i= 0; i< framesCount; ++i){
+		ptr_shared_object->framesStorage[i] = 0;
+	}
+
+	return ptr_shared_object;
+	//panic("alloc_share() is not implemented yet...!!");
 }
 
 
@@ -119,10 +146,38 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #3 create_shared_object
 	//Your code is here
 	//Comment the following line
-	panic("create_shared_object() is not implemented yet...!!");
+	//panic("create_shared_object() is not implemented yet...!!");
+
+	//find_share(ownerID, shareName);
+
+	struct Share* ptr = find_share(ownerID, shareName);
+	if(ptr != NULL) return E_SHARED_MEM_EXISTS;
 
 	struct Env* myenv = get_cpu_proc(); //The calling environment
+	struct Share* ptr_shared_object = alloc_share(ownerID, shareName, size, isWritable);
 
+
+	int framesCount = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
+	uint32 va = (uint32)virtual_address;
+	for (int i = 0; i < framesCount; ++i){
+		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i, PERM_USER|PERM_WRITEABLE|PERM_UHPAGE, 1);
+		if(ret == E_NO_MEM) {
+			// remove the object.
+			return E_NO_SHARE;
+		}
+		uint32* ptr_pg_table = NULL;
+		get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
+		struct FrameInfo* cur_frame = get_frame_info(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
+		ptr_shared_object->framesStorage[i] = cur_frame;
+	}
+
+	acquire_kspinlock(&AllShares.shareslock);
+
+	LIST_INSERT_TAIL(&AllShares.shares_list, ptr_shared_object);
+
+	release_kspinlock(&AllShares.shareslock);
+
+	return ptr_shared_object->ID;
 	// This function should create the shared object at the given virtual address with the given size
 	// and return the ShareObjectID
 	// RETURN:

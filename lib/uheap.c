@@ -73,6 +73,12 @@ void free(void* virtual_address)
 	panic("free() is not implemented yet...!!");
 }
 
+/*
+int is_allocated(uint32 va){
+	return sys_is_allocated(va);
+}
+*/
+
 //=================================
 // [3] ALLOCATE SHARED VARIABLE:
 //=================================
@@ -86,8 +92,56 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #2 smalloc
 	//Your code is here
+	uint32 start_address = uheapPageAllocStart;
+	uint32 end_address = uheapPageAllocBreak;
+	size = ROUNDUP(size, PAGE_SIZE);
+
+	//CASE 1: EXACT fit
+	uint32 res_address = -1;
+	for (uint32 i = start_address; i < end_address; i += PAGE_SIZE){
+		uint32 j = i;
+		while(!is_allocated(j)){
+			j += PAGE_SIZE;
+		}
+		uint32 cur_size = j - i;
+		if(cur_size == size){
+			res_address = i;
+			break;
+		}
+		i = j;
+	}
+	if(res_address == -1){
+		// CASE 2: WORST FIT
+		uint32 max_val = 0;
+		res_address = -1;
+		for (uint32 i = start_address; i < end_address; i += PAGE_SIZE){
+			uint32 j = i;
+			while(!is_allocated(j)){
+				j += PAGE_SIZE;
+			}
+			uint32 cur_size = j - i;
+			if(cur_size >= size){
+				if(cur_size > max_val){
+					max_val = cur_size;
+					res_address = i;
+				}
+			}
+			i = j;
+		}
+	}
+	if(res_address != -1){
+		uint32 extend_size = USER_HEAP_MAX - uheapPageAllocBreak;
+		if(extend_size >= size){
+			res_address = uheapPageAllocBreak;
+			uheapPageAllocBreak = res_address + size;
+		}
+	}
+
+	if(res_address == -1) return NULL;
+	sys_create_shared_object(sharedVarName, size, isWritable, (uint32*)res_address);
+	return (uint32*) res_address;
 	//Comment the following line
-	panic("smalloc() is not implemented yet...!!");
+	//panic("smalloc() is not implemented yet...!!");
 }
 
 //========================================
