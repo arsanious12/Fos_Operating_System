@@ -362,11 +362,45 @@ void clock_interrupt_handler(struct Trapframe* tf)
 // [9] Update LRU Timestamp of WS Elements
 //	  (Automatically Called Every Quantum in case of LRU Time Approx)
 //===================================================================
+
+#define AgeMSBFlag ((uint32)1<<31)
+
+
 void update_WS_time_stamps()
 {
+	for(int i = 0 ; i<1024;i++){
+		struct Env *e=&envs[i];
+		if(e->env_status == ENV_FREE)
+			continue; //skip free env
+		if(LIST_EMPTY(&e->page_WS_list))
+			continue; // skip if no working set
+		struct WorkingSetElement *wst=e->page_WS_list.lh_first;
+		while(wst!=NULL){
+			wst->time_stamp>>=1; //shift wst right
+			uint32 pe=pt_get_page_permissions(e->env_page_directory,wst->virtual_address);
+			int ac=0;
+			if(pe&PERM_USED) //check for recently used or not
+			  ac=1;
+			if(ac){
+				wst->time_stamp|=AgeMSBFlag; //set MSB 3lshan a mark ano recently used
+				pt_set_page_permissions(e->env_page_directory,wst->virtual_address,0,PERM_USED); //3lshan a3mel clear ll iteration elly gaya
+
+			}
+			wst=wst->prev_next_info.le_next;
+		}
+
+
+
+
+	}
+
+
+
+
+
 	//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #1 update_WS_time_stamps
 	//Your code is here
 	//Comment the following line
-	panic("update_WS_time_stamps is not implemented yet...!!");
+	//panic("update_WS_time_stamps is not implemented yet...!!");
 
 }

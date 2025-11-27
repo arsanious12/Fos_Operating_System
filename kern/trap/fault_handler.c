@@ -352,11 +352,38 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			}
 			else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX))
 			{
+
+				/////////////////////////////////////////////LRU/////////////////////////////////////////////////
+				 cprintf("IN LRU");
+				 struct WorkingSetElement*wst=LIST_FIRST(&(faulted_env->page_WS_list));//3lshan ageb a'al wahed fehom used atl3o victim
+				 struct WorkingSetElement*vic=wst;
+				while(wst!=NULL){//h loop 3la elWS kolha atl3 a'al used fehom
+					if(wst->time_stamp < vic->time_stamp){
+						vic=wst;
+					}
+					wst=wst->prev_next_info.le_next;
+				}
+				//3lshan y write lw hya modified
+				uint32 pe=pt_get_page_permissions(faulted_env->env_page_directory,vic->virtual_address);
+				if(pe&PERM_MODIFIED){
+					uint32 *p=NULL;
+					get_page_table(faulted_env->env_page_directory,vic->virtual_address,&p);
+					struct FrameInfo*fr=get_frame_info(faulted_env->env_page_directory,vic->virtual_address,&p);
+					pf_update_env_page(faulted_env,vic->virtual_address,fr);
+				}
+
+				unmap_frame(faulted_env->env_page_directory,vic->virtual_address);
+				LIST_REMOVE(&(faulted_env->page_WS_list),vic);
+				struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
+				LIST_INSERT_TAIL(&(faulted_env->page_WS_list),newElem);
+				faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
 				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #2 LRU Aging Replacement
 				//Your code is here
 				//Comment the following line
-				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+				//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
 			}
+
+
 			else if (isPageReplacmentAlgorithmModifiedCLOCK())
 			{
 				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
