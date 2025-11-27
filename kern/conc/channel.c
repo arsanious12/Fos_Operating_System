@@ -28,10 +28,15 @@ void init_channel(struct Channel *chan, char *name)
 // Ref: xv6-x86 OS code
 void sleep(struct Channel *chan, struct kspinlock* lk)
 {
-	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #1 CHANNEL - sleep
-	//Your code is here
-	//Comment the following line
-	panic("sleep() is not implemented yet...!!");
+	acquire_kspinlock(&ProcessQueues.qlock);
+	struct Env *e = get_cpu_proc();
+	enqueue(&(chan->queue),e);
+	release_kspinlock(lk);
+	e->env_status = ENV_BLOCKED;
+	sched();
+	acquire_kspinlock(lk);
+	release_kspinlock(&ProcessQueues.qlock);
+
 }
 
 //==================================================
@@ -43,10 +48,19 @@ void sleep(struct Channel *chan, struct kspinlock* lk)
 // chan MUST be of type "struct Env_Queue" to hold the blocked processes
 void wakeup_one(struct Channel *chan)
 {
+	acquire_kspinlock(&ProcessQueues.qlock);
+	struct Env *envar = dequeue(&chan->queue);
+	if(envar != NULL){
+		envar->env_status = ENV_READY;
+		sched_insert_ready(envar);
+	}
+	release_kspinlock(&ProcessQueues.qlock);
+
 	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #2 CHANNEL - wakeup_one
 	//Your code is here
 	//Comment the following line
-	panic("wakeup_one() is not implemented yet...!!");
+	//panic("wakeup_one() is not implemented yet...!!");
+
 }
 
 //====================================================
@@ -59,9 +73,17 @@ void wakeup_one(struct Channel *chan)
 
 void wakeup_all(struct Channel *chan)
 {
+	acquire_kspinlock(&ProcessQueues.qlock);
+	int size = queue_size(&chan->queue);
+	for(int i =0;i<size;i++){
+		struct Env *e = dequeue(&chan->queue);
+		e->env_status = ENV_READY;
+		sched_insert_ready(e);
+	}
+	release_kspinlock(&ProcessQueues.qlock);
 	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #3 CHANNEL - wakeup_all
 	//Your code is here
 	//Comment the following line
-	panic("wakeup_all() is not implemented yet...!!");
+	//panic("wakeup_all() is not implemented yet...!!");
 }
 
