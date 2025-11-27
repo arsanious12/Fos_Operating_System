@@ -114,8 +114,11 @@ struct Share* alloc_share(int32 ownerID, char* shareName, uint32 size, uint8 isW
 	ptr_shared_object->ID = (uint32)ptr_shared_object & ~(0x80000000);
 	ptr_shared_object->ownerID = ownerID;
 	int l = strlen(shareName);
-	for (int i = 0; i < l; ++i){
-		ptr_shared_object->name[i] = shareName[i];
+	for (int i = 0; i < 64; ++i){
+		if (i < l)
+			ptr_shared_object->name[i] = shareName[i];
+		else
+			ptr_shared_object->name[i] = ' ';
 	}
 	ptr_shared_object->size = size;
 	ptr_shared_object->isWritable = isWritable;
@@ -148,34 +151,42 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//Comment the following line
 	//panic("create_shared_object() is not implemented yet...!!");
 
-	//find_share(ownerID, shareName);
-
-	struct Share* ptr = find_share(ownerID, shareName);
-	if(ptr != NULL) return E_SHARED_MEM_EXISTS;
-
 	struct Env* myenv = get_cpu_proc(); //The calling environment
-	struct Share* ptr_shared_object = alloc_share(ownerID, shareName, size, isWritable);
 
+	// check if exist
+	struct Share* ptr = find_share(ownerID, shareName);
+	if(ptr != NULL) {
+		cprintf("no creating new object already exist\n");
+		return E_SHARED_MEM_EXISTS;
+	}
 
+	// get frames to be mapped
 	int framesCount = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
 	uint32 va = (uint32)virtual_address;
+
+	// allocating the share object
+	struct Share* ptr_shared_object = alloc_share(ownerID, shareName, size, isWritable);
+	if(ptr_shared_object == NULL) return E_NO_SHARE;
+
+	// insert in the all shares list
+	acquire_kspinlock(&AllShares.shareslock);
+	LIST_INSERT_TAIL(&AllShares.shares_list, ptr_shared_object);
+	release_kspinlock(&AllShares.shareslock);
+
+	//set permission to uhpage and if(iswritable)
+	int perm = PERM_UHPAGE|PERM_USER;
+	if(isWritable) perm|=PERM_WRITEABLE;
+
+	// iterate over the frames and allocating pages from them
 	for (int i = 0; i < framesCount; ++i){
-		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i, PERM_USER|PERM_WRITEABLE|PERM_UHPAGE, 1);
-		if(ret == E_NO_MEM) {
-			// remove the object.
-			return E_NO_SHARE;
-		}
+		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i, perm, 1);
+
 		uint32* ptr_pg_table = NULL;
 		get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
+
 		struct FrameInfo* cur_frame = get_frame_info(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
 		ptr_shared_object->framesStorage[i] = cur_frame;
 	}
-
-	acquire_kspinlock(&AllShares.shareslock);
-
-	LIST_INSERT_TAIL(&AllShares.shares_list, ptr_shared_object);
-
-	release_kspinlock(&AllShares.shareslock);
 
 	return ptr_shared_object->ID;
 	// This function should create the shared object at the given virtual address with the given size
@@ -195,10 +206,32 @@ int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #5 get_shared_object
 	//Your code is here
 	//Comment the following line
-	panic("get_shared_object() is not implemented yet...!!");
+	//panic("get_shared_object() is not implemented yet...!!");
 
 	struct Env* myenv = get_cpu_proc(); //The calling environment
+	struct Share* ptr_shared_object = find_share(ownerID, shareName);
 
+	if(ptr_shared_object == NULL) return E_SHARED_MEM_NOT_EXISTS;
+
+	uint32 size = ROUNDUP(ptr_shared_object->size, PAGE_SIZE);
+	int framesCount = size / PAGE_SIZE;
+	uint32 va = (uint32)virtual_address;
+
+	int perm = PERM_UHPAGE|PERM_USER;
+	if(ptr_shared_object->isWritable) perm|=PERM_WRITEABLE;
+
+	for (int i = 0; i < framesCount; ++i){
+		struct FrameInfo* frame = ptr_shared_object->framesStorage[i];
+		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i,perm , 1);
+
+		uint32* ptr_pg_table = NULL;
+		get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
+
+		struct FrameInfo* cur_frame = get_frame_info(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
+		cur_frame = ptr_shared_object->framesStorage[i];
+		ptr_shared_object->framesStorage[i]->references++;
+	}
+	return ptr_shared_object->ID;
 	// 	This function should share the required object in the heap of the current environment
 	//	starting from the given virtual_address with the specified permissions of the object: read_only/writable
 	// 	and return the ShareObjectID

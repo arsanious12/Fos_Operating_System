@@ -127,6 +127,9 @@ struct Env {
 									//(to be dynamically allocated during the process creation)
 									//Its first page is ALWAYS used as a GUARD PAGE (i.e. unmapped)
 
+	/*
+		uint8 uheap_pages[1024*1024];
+	*/
 	//for page file management
 	uint32* disk_env_pgdir;
 	//2016

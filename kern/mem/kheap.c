@@ -128,7 +128,7 @@ void* kmalloc(unsigned int size)
 		uint32 va = (uint32)alloc_block(size);
 		uint32 page_va = to_page_va(to_page_info(va));
 		//kheap_address[kheap_physical_address(page_va) >> 12] = page_va;
-		cprintf("blk va: %x, of pageVa: %x, idx in kadd: %d\n", va, page_va, kheap_physical_address(page_va) >> 12);
+		//cprintf("blk va: %x, of pageVa: %x, idx in kadd: %d\n", va, page_va, kheap_physical_address(page_va) >> 12);
 		return (uint32 *)va;
 	}
 	else {

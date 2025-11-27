@@ -989,7 +989,11 @@ void initialize_environment(struct Env* e, uint32* ptr_user_page_directory, unsi
 	{
 		e->env_page_directory[i] = ptr_page_directory[i] ;
 	}
-
+	/*
+		for (int i = 0; i < 1024*1024; ++i){
+			e->uheap_pages[i] = 0;
+		}
+	 */
 	/*2024
 	 * Create the User Kernel Stack for this process (to be used for the trap/interrupt)
 	 * Place the trap frame at the stack top (will be set during the interrupt/trap)
