@@ -47,7 +47,6 @@ _main(void)
 	{is_correct = 0; cprintf_colored(TEXT_TESTERR_CLR, "\nWrong allocation (current=%d, expected=[%d, %d]): make sure that you allocate the required space in the user environment and add its frames to frames_storage", freeFrames - sys_calculate_free_frames(), expected, expected +1 +2);}
 	if( (sys_pf_calculate_allocated_pages() - usedDiskPages) !=  0)
 	{is_correct = 0; cprintf_colored(TEXT_TESTERR_CLR, "Wrong page file allocation: ");}
-
 	//y: Readonly
 	freeFrames = sys_calculate_free_frames() ;
 	usedDiskPages = sys_pf_calculate_allocated_pages();
@@ -78,12 +77,11 @@ _main(void)
 
 	*x = 10 ;
 	*y = 20 ;
-
 	int id1, id2, id3;
 	id1 = sys_create_env("shr2Slave1", (myEnv->page_WS_max_size),(myEnv->SecondListSize), (myEnv->percentage_of_WS_pages_to_be_removed));
 	id2 = sys_create_env("shr2Slave1", (myEnv->page_WS_max_size), (myEnv->SecondListSize),(myEnv->percentage_of_WS_pages_to_be_removed));
 	id3 = sys_create_env("shr2Slave1", (myEnv->page_WS_max_size), (myEnv->SecondListSize),(myEnv->percentage_of_WS_pages_to_be_removed));
-
+	cprintf("slaves created successfully\n");
 	//to check that the slave environments completed successfully
 	rsttst();
 

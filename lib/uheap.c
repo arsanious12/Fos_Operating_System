@@ -10,6 +10,16 @@
 int __firstTimeFlag = 1;
 
 bool uheap[1024*1024];
+/*
+ * struct uspinlock {
+  uint32 locked;       	// Is the lock held?
+  char name[NAMELEN];	// Name of lock.
+};
+void init_uspinlock(struct uspinlock *lk, char *name, bool isOpened);
+void acquire_uspinlock(struct uspinlock *lk);
+void release_uspinlock(struct uspinlock *lk);
+ */
+
 void uheap_init()
 {
 	if(__firstTimeFlag)
@@ -18,7 +28,6 @@ void uheap_init()
 		uheapPlaceStrategy = sys_get_uheap_strategy();
 		uheapPageAllocStart = dynAllocEnd + PAGE_SIZE;
 		uheapPageAllocBreak = uheapPageAllocStart;
-
 		__firstTimeFlag = 0;
 		for (int i = 0; i < 1024*1024; ++i) uheap[i] = 0;
 	}
@@ -78,12 +87,10 @@ void free(void* virtual_address)
 
 
 int is_allocated(uint32 va){
-	/* uheap approach in env...
-	return myEnv->uheap_pages[va>>12];
-	 */
 	return uheap[va >> 12];
 }
 
+int entrance_count = 0;
 //=================================
 // [3] ALLOCATE SHARED VARIABLE:
 //=================================
@@ -103,7 +110,8 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 
 
     int r = sys_size_of_shared_object(sys_getenvid(), sharedVarName);
-	if(r == E_SHARED_MEM_EXISTS) return NULL;
+	cprintf("size: %d\n", r);
+    if(r >= 1) return NULL;
 
 	//CASE 1: EXACT fit
 	uint32 res_address = 0;
@@ -145,6 +153,7 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 			}
 		}
 	}
+
 	if(res_address == 0){
 		uint32 size_needed = size + uheapPageAllocBreak;
 		if(size_needed <= USER_HEAP_MAX){
@@ -154,7 +163,6 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	}
 
 	if(res_address == 0) return NULL;
-
 
 	int ret = sys_create_shared_object(sharedVarName, size, isWritable, (uint32*)res_address);
 	if(ret == E_NO_SHARE) return NULL;
@@ -185,7 +193,7 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 	uint32 end_address = uheapPageAllocBreak;
     uint32 size = ROUNDUP(shr_size, PAGE_SIZE);
 
-	//CASE 1: EXACT fit
+    //CASE 1: EXACT fit
 	uint32 res_address = 0;
 	for (uint32 i = start_address; i < end_address;){
 		if(!is_allocated(i)){
@@ -225,6 +233,7 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 			}
 		}
 	}
+
 	if(res_address == 0){
 		uint32 size_needed = size + uheapPageAllocBreak;
 		if(size_needed <= USER_HEAP_MAX){

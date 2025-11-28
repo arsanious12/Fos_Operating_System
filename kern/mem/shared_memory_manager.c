@@ -114,11 +114,8 @@ struct Share* alloc_share(int32 ownerID, char* shareName, uint32 size, uint8 isW
 	ptr_shared_object->ID = (uint32)ptr_shared_object & ~(0x80000000);
 	ptr_shared_object->ownerID = ownerID;
 	int l = strlen(shareName);
-	for (int i = 0; i < 64; ++i){
-		if (i < l)
+	for (int i = 0; i < l; ++i){
 			ptr_shared_object->name[i] = shareName[i];
-		else
-			ptr_shared_object->name[i] = ' ';
 	}
 	ptr_shared_object->size = size;
 	ptr_shared_object->isWritable = isWritable;
@@ -169,6 +166,7 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	if(ptr_shared_object == NULL) return E_NO_SHARE;
 
 	// insert in the all shares list
+
 	acquire_kspinlock(&AllShares.shareslock);
 	LIST_INSERT_TAIL(&AllShares.shares_list, ptr_shared_object);
 	release_kspinlock(&AllShares.shareslock);
@@ -179,7 +177,7 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 
 	// iterate over the frames and allocating pages from them
 	for (int i = 0; i < framesCount; ++i){
-		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i, perm, 1);
+		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i, perm, 0);
 
 		uint32* ptr_pg_table = NULL;
 		get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
@@ -222,10 +220,13 @@ int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 
 	for (int i = 0; i < framesCount; ++i){
 		struct FrameInfo* frame = ptr_shared_object->framesStorage[i];
-		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i,perm , 1);
+		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i,perm , 0);
 
 		uint32* ptr_pg_table = NULL;
-		get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
+		ret = get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
+		if(ret == TABLE_NOT_EXIST){
+			ptr_pg_table = create_page_table(myenv->env_page_directory, va + PAGE_SIZE*i);
+		}
 
 		struct FrameInfo* cur_frame = get_frame_info(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
 		cur_frame = ptr_shared_object->framesStorage[i];
