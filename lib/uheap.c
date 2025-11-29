@@ -10,15 +10,6 @@
 int __firstTimeFlag = 1;
 
 bool uheap[1024*1024];
-/*
- * struct uspinlock {
-  uint32 locked;       	// Is the lock held?
-  char name[NAMELEN];	// Name of lock.
-};
-void init_uspinlock(struct uspinlock *lk, char *name, bool isOpened);
-void acquire_uspinlock(struct uspinlock *lk);
-void release_uspinlock(struct uspinlock *lk);
- */
 
 void uheap_init()
 {
@@ -96,12 +87,12 @@ int entrance_count = 0;
 //=================================
 void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 {
+	cprintf("env id is : %d\n", sys_getenvid());
 	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	uheap_init();
 	if (size == 0) return NULL ;
-	//==============================================================
-
+	//=============================================================
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #2 smalloc
 	//Your code is here
 	uint32 start_address = uheapPageAllocStart;
@@ -170,7 +161,7 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
 		uheap[i >> 12] = 1;
 	}
-
+	cprintf("%s successfully allocated in %x\n", sharedVarName, res_address);
 	return (uint32*) res_address;
 	//Comment the following line
 	//panic("smalloc() is not implemented yet...!!");
@@ -181,13 +172,16 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 //========================================
 void* sget(int32 ownerEnvID, char *sharedVarName)
 {
+	cprintf(" ===== sget %s called and env id is : %d\n", sharedVarName,sys_getenvid());
 	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	uheap_init();
 	//==============================================================
 
 	int shr_size = sys_size_of_shared_object(ownerEnvID, sharedVarName);
-	if(shr_size == E_SHARED_MEM_NOT_EXISTS) return NULL;
+	if(shr_size == E_SHARED_MEM_NOT_EXISTS){
+		return NULL;
+	}
 
 	uint32 start_address = uheapPageAllocStart;
 	uint32 end_address = uheapPageAllocBreak;
@@ -242,9 +236,18 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 		}
 	}
 
-	if(res_address == 0) return NULL;
+	if(res_address == 0){
+		return NULL;
+	}
 
-	sys_get_shared_object(ownerEnvID, sharedVarName, (uint32*)res_address);
+	int ret = sys_get_shared_object(ownerEnvID, sharedVarName, (uint32*)res_address);
+	if(ret == E_SHARED_MEM_NOT_EXISTS){
+		return NULL;
+	}
+
+	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
+		uheap[i >> 12] = 1;
+	}
 
 	return (uint32*)res_address;
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #4 sget
