@@ -107,8 +107,8 @@ struct Share* alloc_share(int32 ownerID, char* shareName, uint32 size, uint8 isW
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #1 alloc_share
 	//Your code is here
 	//Comment the following line
-	panic("alloc_share() is not implemented yet...!!");
-}
+
+	panic("alloc_share() is not implemented yet...!!");}
 
 
 //=========================
@@ -121,7 +121,6 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//Comment the following line
 	panic("create_shared_object() is not implemented yet...!!");
 
-	struct Env* myenv = get_cpu_proc(); //The calling environment
 
 	// This function should create the shared object at the given virtual address with the given size
 	// and return the ShareObjectID
@@ -129,6 +128,7 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//	a) ID of the shared object (its VA after masking out its msb) if success
 	//	b) E_SHARED_MEM_EXISTS if the shared object already exists
 	//	c) E_NO_SHARE if failed to create a shared object
+
 }
 
 
@@ -142,7 +142,6 @@ int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 	//Comment the following line
 	panic("get_shared_object() is not implemented yet...!!");
 
-	struct Env* myenv = get_cpu_proc(); //The calling environment
 
 	// 	This function should share the required object in the heap of the current environment
 	//	starting from the given virtual_address with the specified permissions of the object: read_only/writable

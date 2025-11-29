@@ -128,7 +128,7 @@ void* kmalloc(unsigned int size)
 		uint32 va = (uint32)alloc_block(size);
 		uint32 page_va = to_page_va(to_page_info(va));
 		//kheap_address[kheap_physical_address(page_va) >> 12] = page_va;
-		cprintf("blk va: %x, of pageVa: %x, idx in kadd: %d\n", va, page_va, kheap_physical_address(page_va) >> 12);
+		/*cprintf("blk va: %x, of pageVa: %x, idx in kadd: %d\n", va, page_va, kheap_physical_address(page_va) >> 12);*/
 		return (uint32 *)va;
 	}
 	else {
@@ -293,7 +293,6 @@ void kfree(void* virtual_address)
 	if(NextPageVa == kheapPageAllocBreak){
 		for(uint32 i = kheapPageAllocBreak-PAGE_SIZE; i>= kheapPageAllocStart;i -=PAGE_SIZE){
 			if(kheap_pages[(i - kheapPageAllocStart)/PAGE_SIZE].allocated){
-				//kheapPageAllocBreak= ROUNDUP(kheap_pages[(i - kheapPageAllocStart)/PAGE_SIZE].size + kheap_pages[(i - kheapPageAllocStart)/PAGE_SIZE].va,PAGE_SIZE);
 				kheapPageAllocBreak = i + PAGE_SIZE;
 				break;
 			}
