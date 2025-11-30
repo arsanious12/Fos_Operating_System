@@ -53,10 +53,14 @@ inline int pt_get_page_permissions(uint32* directory, uint32 virtual_address )
 {
 	cprintf("pt_get_page_permissions\n");
 	uint32* ptr_page_table = NULL;
+	cprintf("b page_table\n");
 	int ret = get_page_table(directory, virtual_address, &ptr_page_table);
+	cprintf("a page_table\n");
 	if(ret == TABLE_IN_MEMORY){
+		cprintf("page_table found\n");
 		return ptr_page_table[PTX(virtual_address)]&0x00000FFF;
 	}else {
+		cprintf("not found page_table\n");
 		return -1;
 	}
 	//TODO: PRACTICE: fill this function.
