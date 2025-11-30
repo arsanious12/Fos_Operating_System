@@ -281,12 +281,27 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
  *
  * 	IMPORTANT: This function SHOULD NOT change any of the given lists
  */
+void FindVic(struct PageRef_List *pageReferences,struct WS_List *initWorkingSet,struct PageRefElement *it){
+	struct WS_List tmp;
+	LIST_INIT(&tmp);
+	struct WorkingSetElement *elem = NULL;
+	LIST_FOREACH(elem,initWorkingSet){
+		LIST_INSERT_TAIL(&tmp,elem);
+	}
+
+}
 int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct PageRef_List *pageReferences)
 {
 	//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #2 get_optimal_num_faults
 	//Your code is here
 	//Comment the following line
-	panic("get_optimal_num_faults() is not implemented yet...!!");
+	//panic("get_optimal_num_faults() is not implemented yet...!!");
+	struct PageRefElement *it = NULL;
+	LIST_FOREACH(it,pageReferences){
+		if(LIST_SIZE(initWorkingSet)==maxWSSize){
+
+		}
+	}
 }
 
 void ClearActive(struct Env * faulted_env, uint32 fault_va){
