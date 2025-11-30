@@ -163,7 +163,6 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//Comment the following line
 	//panic("create_shared_object() is not implemented yet...!!");
 
-	struct Env* myenv = get_cpu_proc(); //The calling environment
 
 	cprintf("\n\n before allocating: ");
 	print_allshare();
@@ -214,6 +213,7 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//	a) ID of the shared object (its VA after masking out its msb) if success
 	//	b) E_SHARED_MEM_EXISTS if the shared object already exists
 	//	c) E_NO_SHARE if failed to create a shared object
+
 }
 
 //======================
@@ -226,7 +226,6 @@ int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 	//Comment the following line
 	//panic("get_shared_object() is not implemented yet...!!");
 
-	struct Env* myenv = get_cpu_proc(); //The calling environment
 
 	cprintf("\ncurrent shared list: ");
 	print_allshare();

@@ -36,3 +36,5 @@ coding
 VGABIOS-lgpl-latest
 Readme_Project_Port_To_ModernGCC.txt
 conf
+ UpgradeLog.XML
+ grade.sh

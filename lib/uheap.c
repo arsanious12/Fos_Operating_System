@@ -9,6 +9,13 @@
 //==============================================
 int __firstTimeFlag = 1;
 
+struct uheap_page{
+
+	int marked;
+	uint32 va;
+	uint32 size;
+};
+struct uheap_page uheap_pages[NUM_OF_UHEAP_PAGES];
 bool uheap[1024*1024];
 
 void uheap_init()
@@ -21,6 +28,16 @@ void uheap_init()
 		uheapPageAllocBreak = uheapPageAllocStart;
 		__firstTimeFlag = 0;
 		for (int i = 0; i < 1024*1024; ++i) uheap[i] = 0;
+		for(uint32 i=0;i<=NUM_OF_UHEAP_PAGES;i++){
+			uheap_pages[i].marked = 0;
+			uheap_pages[i].size = 0;
+			uheap_pages[i].va = 0;
+
+
+
+		}
+
+
 	}
 }
 
@@ -52,6 +69,20 @@ void return_page(void* va)
 //=================================
 // [1] ALLOCATE SPACE IN USER HEAP:
 //=================================
+
+
+void mark_uheap(uint32 startva,uint32 end,uint32 size,int flag){
+	uint32 k;
+	for (k = startva; k < end + flag * PAGE_SIZE; k += PAGE_SIZE) {
+		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].marked = 1;
+		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].size = size;
+		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].va = startva;
+
+	}
+	sys_allocate_user_mem(startva,ROUNDUP(size,PAGE_SIZE));
+
+}
+
 void* malloc(uint32 size)
 {
 	//==============================================================
@@ -62,8 +93,94 @@ void* malloc(uint32 size)
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #1 malloc
 	//Your code is here
 	//Comment the following line
-	panic("malloc() is not implemented yet...!!");
-}
+	/*panic("malloc() is not implemented yet...!!");*/
+	//////////////////////////dyn..alloc..//////////////////////////////
+	if(size<=DYN_ALLOC_MAX_BLOCK_SIZE){
+		uint32 vra=(uint32)alloc_block(size);
+		return (uint32 *)vra;
+		}
+	/////////////////////////////page///////////////////////////////////////////////
+
+	else{
+		///////////////////////////////////exact///////////////////////////////////
+
+	int flag =0;
+	uint32 startva = uheapPageAllocStart;
+	int j =0;
+	int FoundExactFit = 0;
+	int FoundworstFit = 0;
+	uint32 SumOfSizes = 0;
+
+	for (uint32 i = uheapPageAllocStart; i < uheapPageAllocBreak && j < NUM_OF_UHEAP_PAGES; i += PAGE_SIZE, j++){
+		if (uheap_pages[j].marked !=1) {
+
+			SumOfSizes += PAGE_SIZE;
+			if (flag !=1) {
+				startva = i;
+				flag = 1;
+			}
+		if (SumOfSizes == ROUNDUP(size,PAGE_SIZE) && (j + 1 < NUM_OF_UHEAP_PAGES && uheap_pages[j + 1].marked == 1)) {
+
+			mark_uheap(startva,i,size,1);
+			return (uint32*)startva;
+
+
+
+			}
+		}
+		else {
+			flag = 0;
+			SumOfSizes = 0;
+		}
+
+	}
+	//////////////////////////////////////////worst///////////////////////////////////
+uint32 maxsize = 0;
+uint32 StartOfMaxVa;
+		j = 0;
+
+		SumOfSizes = 0;
+		flag = 0;
+	for (uint32 i = uheapPageAllocStart; i < uheapPageAllocBreak && j < NUM_OF_UHEAP_PAGES; i += PAGE_SIZE, j++) {
+
+		if (!uheap_pages[j].marked) {
+			SumOfSizes += PAGE_SIZE;
+			if (maxsize < SumOfSizes) {
+				maxsize = SumOfSizes;
+				StartOfMaxVa = startva;
+			}
+		 if (flag !=1) {
+			startva = i;
+				flag = 1;
+				}
+			}
+			else {
+				flag = 0;
+				SumOfSizes = 0;
+			}
+
+		}
+		if (maxsize > size) {
+			mark_uheap(StartOfMaxVa,StartOfMaxVa+ROUNDUP(size,PAGE_SIZE),size,0);
+			return (uint32*)StartOfMaxVa;
+
+		}
+		/////////////////////////////////////////Extend/////////////////////////////////
+		if(ROUNDUP(size,PAGE_SIZE) <= (USER_HEAP_MAX-uheapPageAllocBreak)){
+			//cprintf("cancelooooooooooooooooo \n");
+
+			startva = uheapPageAllocBreak;
+			uheapPageAllocBreak +=ROUNDUP(size,PAGE_SIZE);
+			mark_uheap(startva,uheapPageAllocBreak,size,1);
+			return (uint32*)startva;
+
+		}
+	}
+	return NULL;
+
+	}
+
+
 
 //=================================
 // [2] FREE SPACE FROM USER HEAP:
@@ -73,8 +190,46 @@ void free(void* virtual_address)
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #3 free
 	//Your code is here
 	//Comment the following line
-	panic("free() is not implemented yet...!!");
-}
+	//panic("free() is not implemented yet...!!");
+	uint32 vra = (uint32) virtual_address;
+	uint32 size = 0;
+	int ct=0;
+		if(vra >= dynAllocStart && vra < dynAllocEnd){
+			struct PageInfoElement* elm = to_page_info(vra);
+			free_block(virtual_address);
+			return;
+		}
+	if(vra<uheapPageAllocStart||vra>=uheapPageAllocBreak ){
+		panic("invalid address");
+	}
+	else{
+		size=uheap_pages[(vra - uheapPageAllocStart)/PAGE_SIZE].size;
+		if(size % PAGE_SIZE !=0){
+				ct = (size/PAGE_SIZE) + 1;
+			}
+			else {
+				ct = (size/PAGE_SIZE);
+			}
+	for(uint32 i=vra;i < vra + ct*PAGE_SIZE;i += PAGE_SIZE){
+		size=uheap_pages[(vra - uheapPageAllocStart)/PAGE_SIZE].size;
+		sys_free_user_mem(i,size);
+		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].marked=0;
+		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].va=0;
+		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].size=0;
+
+		}
+	uint32 NextPageVa = vra + (ct)*PAGE_SIZE;
+		if(NextPageVa == uheapPageAllocBreak){
+		for(uint32 i = uheapPageAllocBreak-PAGE_SIZE; i>= uheapPageAllocStart;i -=PAGE_SIZE){
+			if(uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].marked){
+				uheapPageAllocBreak = i + PAGE_SIZE;
+				break;
+			}
+		}
+			if(NextPageVa == uheapPageAllocBreak){
+			uheapPageAllocBreak = uheapPageAllocStart;
+			}
+	}
 
 
 int is_allocated(uint32 va){

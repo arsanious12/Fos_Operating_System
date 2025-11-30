@@ -51,7 +51,7 @@ inline void pt_set_page_permissions(uint32* directory, uint32 virtual_address, u
 //If the page table not exist, return -1
 inline int pt_get_page_permissions(uint32* directory, uint32 virtual_address )
 {
-	cprintf("pt_get_page_permissions\n");
+	//cprintf("pt_get_page_permissions\n");
 	uint32* ptr_page_table = NULL;
 	cprintf("b page_table\n");
 	int ret = get_page_table(directory, virtual_address, &ptr_page_table);

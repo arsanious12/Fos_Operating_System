@@ -86,7 +86,7 @@ extern uint32 sys_calculate_free_frames() ;
 struct Env* last_faulted_env = NULL;
 void fault_handler(struct Trapframe *tf)
 {
-	cprintf("\nIN fault_handler\n");
+	//cprintf("fault_handler\n");
 	/******************************************************/
 	// Read processor's CR2 register to find the faulting address
 	uint32 fault_va = rcr2();
@@ -167,15 +167,18 @@ void fault_handler(struct Trapframe *tf)
 			int perm = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
 			if (fault_va >= USER_LIMIT)
 			{
+				//cprintf("cancelloo1\n");
 				env_exit();
 			}
 			else if (fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX)
 			{
-				if (!(perm & PERM_UHPAGE))
-					env_exit();
+				if (!(perm & PERM_UHPAGE)){
+					//cprintf("cancelloo2\n");
+					env_exit();}
 			}
 			else if ((perm & PERM_PRESENT) && (perm & ~PERM_WRITEABLE))
 			{
+				//cprintf("cancelloo3\n");
 				env_exit();
 			}
 
@@ -295,12 +298,12 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			allocate_frame(&NewFrame);
 			map_frame(faulted_env->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER);
 			int res = pf_read_env_page(faulted_env,(uint32*)fault_va);
-			cprintf("Ah\n");
+			//cprintf("Ah\n");
 			int to_be_placed = 0;
 			if(res == E_PAGE_NOT_EXIST_IN_PF){
-				cprintf("Ah2\n");
+				//cprintf("Ah2\n");
 				if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
-					cprintf("Ah3\n");
+					//cprintf("Ah3\n");
 					to_be_placed = 1;
 
 				}
