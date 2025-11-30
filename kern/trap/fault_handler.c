@@ -281,13 +281,28 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
  *
  * 	IMPORTANT: This function SHOULD NOT change any of the given lists
  */
-void FindVic(struct PageRef_List *pageReferences,struct WS_List *initWorkingSet,struct PageRefElement *it){
+struct WorkingSetElement* FindVic(struct PageRef_List *pageReferences,struct WS_List *initWorkingSet,struct PageRefElement *it){
 	struct WS_List tmp;
 	LIST_INIT(&tmp);
 	struct WorkingSetElement *elem = NULL;
 	LIST_FOREACH(elem,initWorkingSet){
 		LIST_INSERT_TAIL(&tmp,elem);
 	}
+	while (1==1){
+		struct WorkingSetElement *elem =NULL;
+		elem->virtual_address = it->virtual_address;
+		LIST_REMOVE(&tmp,elem);
+		if(LIST_SIZE(&tmp)==1){
+			return LIST_FIRST(&tmp);
+		}
+		if(LIST_NEXT(it) == NULL)
+			break;
+		else it = LIST_NEXT(it);
+	}
+	if(LIST_SIZE(&tmp) > 1){
+		return LIST_FIRST(&tmp);
+	}
+	return NULL;
 
 }
 int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct PageRef_List *pageReferences)
@@ -297,11 +312,27 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct
 	//Comment the following line
 	//panic("get_optimal_num_faults() is not implemented yet...!!");
 	struct PageRefElement *it = NULL;
+	int cnt = 0;
 	LIST_FOREACH(it,pageReferences){
-		if(LIST_SIZE(initWorkingSet)==maxWSSize){
-
+		struct WorkingSetElement *elem;
+		//elem->virtual_address = it->virtual_address;
+		int flag = 0;
+		LIST_FOREACH(elem,initWorkingSet){
+			if(elem->virtual_address == it->virtual_address){
+				flag = 1;
+			}
+		}
+		if(flag==0){
+			if(LIST_SIZE(initWorkingSet)==maxWSSize){
+				struct WorkingSetElement *vic = FindVic(pageReferences,initWorkingSet,it);
+				LIST_REMOVE(initWorkingSet,vic);
+			}
+			elem->virtual_address = it->virtual_address;
+			LIST_INSERT_TAIL(initWorkingSet,elem);
+			cnt++;
 		}
 	}
+	return cnt;
 }
 
 void ClearActive(struct Env * faulted_env, uint32 fault_va){
