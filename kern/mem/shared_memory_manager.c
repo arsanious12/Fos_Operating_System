@@ -163,14 +163,15 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//Comment the following line
 	//panic("create_shared_object() is not implemented yet...!!");
 
+	struct Env* myenv = get_cpu_proc();
 
-	cprintf("\n\n before allocating: ");
-	print_allshare();
+	//cprintf("\n\n before allocating: ");
+	//print_allshare();
 
 	// check if exist
 	struct Share* ptr = find_share(ownerID, shareName);
 	if(ptr != NULL) {
-		cprintf("no creating new object already exist\n");
+		//cprintf("no creating new object already exist\n");
 		return E_SHARED_MEM_EXISTS;
 	}
 
@@ -203,8 +204,8 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	LIST_INSERT_TAIL(&AllShares.shares_list, ptr_shared_object);
 	release_kspinlock(&AllShares.shareslock);
 
-	cprintf("\n\n after allocating: ");
-	print_allshare();
+	//cprintf("\n\n after allocating: ");
+	//print_allshare();
 
 	return ptr_shared_object->ID;
 	// This function should create the shared object at the given virtual address with the given size
@@ -226,9 +227,10 @@ int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 	//Comment the following line
 	//panic("get_shared_object() is not implemented yet...!!");
 
+	struct Env* myenv = get_cpu_proc(); //The calling
 
-	cprintf("\ncurrent shared list: ");
-	print_allshare();
+	//cprintf("\ncurrent shared list: ");
+	//print_allshare();
 
 	struct Share* ptr_shared_object = find_share(ownerID, shareName);
 

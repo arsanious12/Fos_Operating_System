@@ -148,7 +148,7 @@ void fault_handler(struct Trapframe *tf)
 	struct Env* faulted_env = cur_env;
 	if (faulted_env == NULL)
 	{
-		cprintf("\nFaulted VA = %x\n", fault_va);
+		//cprintf("\nFaulted VA = %x\n", fault_va);
 		print_trapframe(tf);
 		panic("faulted env == NULL!");
 	}
@@ -163,7 +163,7 @@ void fault_handler(struct Trapframe *tf)
 	{
 		if (userTrap)
 		{
-			cprintf("userTrap1\n");
+			//cprintf("userTrap1\n");
 			int perm = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
 			if (fault_va >= USER_LIMIT)
 			{
@@ -198,10 +198,12 @@ void fault_handler(struct Trapframe *tf)
 
 		/*2022: Check if fault due to Access Rights */
 		int perms = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
+/*
 		while(perms){
 			if(perms&1) cprintf("%d", 1);
 			perms >>= 1;
 		}
+*/
 		if (perms & PERM_PRESENT)
 			panic("Page @va=%x is exist! page fault due to violation of ACCESS RIGHTS\n", fault_va) ;
 		/*============================================================================================*/
