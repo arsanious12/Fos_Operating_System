@@ -16,7 +16,7 @@ struct uheap_page{
 	uint32 size;
 };
 struct uheap_page uheap_pages[NUM_OF_UHEAP_PAGES];
-bool uheap[1024*1024];
+//bool uheap[1024*1024];
 
 void uheap_init()
 {
@@ -27,14 +27,11 @@ void uheap_init()
 		uheapPageAllocStart = dynAllocEnd + PAGE_SIZE;
 		uheapPageAllocBreak = uheapPageAllocStart;
 		__firstTimeFlag = 0;
-		for (int i = 0; i < 1024*1024; ++i) uheap[i] = 0;
-		for(uint32 i=0;i<=NUM_OF_UHEAP_PAGES;i++){
+		//for (int i = 0; i < 1024*1024; ++i) uheap[i] = 0;
+		for(uint32 i=0;i<NUM_OF_UHEAP_PAGES;i++){
 			uheap_pages[i].marked = 0;
 			uheap_pages[i].size = 0;
 			uheap_pages[i].va = 0;
-
-
-
 		}
 
 
@@ -74,13 +71,14 @@ void return_page(void* va)
 void mark_uheap(uint32 startva,uint32 end,uint32 size,int flag){
 	uint32 k;
 	for (k = startva; k < end + flag * PAGE_SIZE; k += PAGE_SIZE) {
+
+		 //uheap[(k - uheapPageAllocStart) / PAGE_SIZE] = 1;
 		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].marked = 1;
 		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].size = size;
 		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].va = startva;
 
 	}
 	sys_allocate_user_mem(startva,ROUNDUP(size,PAGE_SIZE));
-
 }
 
 void* malloc(uint32 size)
@@ -213,6 +211,10 @@ void free(void* virtual_address)
 	for(uint32 i=vra;i < vra + ct*PAGE_SIZE;i += PAGE_SIZE){
 		size=uheap_pages[(vra - uheapPageAllocStart)/PAGE_SIZE].size;
 		sys_free_user_mem(i,size);
+
+
+		//uheap[(i - uheapPageAllocStart)/PAGE_SIZE] = 0;
+
 		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].marked=0;
 		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].va=0;
 		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].size=0;
@@ -231,18 +233,20 @@ void free(void* virtual_address)
 			}
 	}
 
-
-int is_allocated(uint32 va){
-	return uheap[va >> 12];
+     }
 }
 
-int entrance_count = 0;
+int is_allocated(uint32 va){
+	return uheap_pages[(va - uheapPageAllocStart) >> 12].marked;
+}
+
+//int entrance_count = 0;
 //=================================
 // [3] ALLOCATE SHARED VARIABLE:
 //=================================
 void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 {
-	cprintf("env id is : %d\n", sys_getenvid());
+	//cprintf("env id is : %d\n", sys_getenvid());
 	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	uheap_init();
@@ -256,7 +260,7 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 
 
     int r = sys_size_of_shared_object(sys_getenvid(), sharedVarName);
-	cprintf("size: %d\n", r);
+	//cprintf("size: %d\n", r);
     if(r >= 1) return NULL;
 
 	//CASE 1: EXACT fit
@@ -313,10 +317,14 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	int ret = sys_create_shared_object(sharedVarName, size, isWritable, (uint32*)res_address);
 	if(ret == E_NO_SHARE) return NULL;
 
+
+	mark_uheap(res_address, res_address + size, size, 0);
+	/*
 	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
 		uheap[i >> 12] = 1;
 	}
-	cprintf("%s successfully allocated in %x\n", sharedVarName, res_address);
+	*/
+	//cprintf("%s successfully allocated in %x\n", sharedVarName, res_address);
 	return (uint32*) res_address;
 	//Comment the following line
 	//panic("smalloc() is not implemented yet...!!");
@@ -327,7 +335,7 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 //========================================
 void* sget(int32 ownerEnvID, char *sharedVarName)
 {
-	cprintf(" ===== sget %s called and env id is : %d\n", sharedVarName,sys_getenvid());
+	//cprintf(" ===== sget %s called and env id is : %d\n", sharedVarName,sys_getenvid());
 	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	uheap_init();
@@ -400,10 +408,12 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 		return NULL;
 	}
 
+	mark_uheap(res_address, res_address + size, size, 0);
+	/*
 	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
 		uheap[i >> 12] = 1;
 	}
-
+	*/
 	return (uint32*)res_address;
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #4 sget
 	//Your code is here
