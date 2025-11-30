@@ -163,8 +163,8 @@ void fault_handler(struct Trapframe *tf)
 	{
 		if (userTrap)
 		{
-			//cprintf("userTrap1\n");
-			uint32 perm = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
+			cprintf("userTrap1\n");
+			int perm = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
 			if (fault_va >= USER_LIMIT)
 			{
 				//cprintf("cancelloo1\n");
@@ -176,35 +176,14 @@ void fault_handler(struct Trapframe *tf)
 					//cprintf("cancelloo2\n");
 					env_exit();}
 			}
-			else if ((perm & PERM_PRESENT) && !(perm & PERM_WRITEABLE))
+			else if ((perm & PERM_PRESENT) && (perm & ~PERM_WRITEABLE))
 			{
 				//cprintf("cancelloo3\n");
 				env_exit();
 			}
 
 
-			/*
 
-			if((perm&PERM_PRESENT)){
-				pt_clear_page_table_entry(faulted_env->env_page_directory,fault_va);
-				env_exit();
-			}
-			else if ((fault_va >= USER_LIMIT && fault_va < KERNEL_HEAP_MAX)){
-				cprintf("userTrap2\n");
-				pt_clear_page_table_entry(faulted_env->env_page_directory,fault_va);
-				env_exit();
-			}
-			else if((fault_va >= USER_HEAP_START) && (fault_va < USER_HEAP_MAX) && (perm & PERM_UHPAGE) == !PERM_UHPAGE){
-				cprintf("userTrap3\n");
-				pt_clear_page_table_entry(faulted_env->env_page_directory,fault_va);
-				env_exit();
-			}
-			else if (!(perm&PERM_WRITEABLE)){
-				cprintf("userTrap4\n");
-				//faulted_env->env_status = ENV_EXIT;
-				env_exit();
-			}
-			 */
 
 						//01110111101
 						//0000 0001 0000 0000  // arsanious perm
@@ -219,6 +198,10 @@ void fault_handler(struct Trapframe *tf)
 
 		/*2022: Check if fault due to Access Rights */
 		int perms = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
+		while(perms){
+			if(perms&1) cprintf("%d", 1);
+			perms >>= 1;
+		}
 		if (perms & PERM_PRESENT)
 			panic("Page @va=%x is exist! page fault due to violation of ACCESS RIGHTS\n", fault_va) ;
 		/*============================================================================================*/

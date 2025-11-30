@@ -26,7 +26,6 @@ void uheap_init()
 		uheapPlaceStrategy = sys_get_uheap_strategy();
 		uheapPageAllocStart = dynAllocEnd + PAGE_SIZE;
 		uheapPageAllocBreak = uheapPageAllocStart;
-
 		__firstTimeFlag = 0;
 		for (int i = 0; i < 1024*1024; ++i) uheap[i] = 0;
 		for(uint32 i=0;i<=NUM_OF_UHEAP_PAGES;i++){
@@ -232,27 +231,95 @@ void free(void* virtual_address)
 			}
 	}
 
-     }
-}
+
 int is_allocated(uint32 va){
 	return uheap[va >> 12];
 }
+
+int entrance_count = 0;
 //=================================
 // [3] ALLOCATE SHARED VARIABLE:
 //=================================
 void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 {
+	cprintf("env id is : %d\n", sys_getenvid());
 	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	uheap_init();
 	if (size == 0) return NULL ;
-	//==============================================================
-
+	//=============================================================
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #2 smalloc
 	//Your code is here
+	uint32 start_address = uheapPageAllocStart;
+	uint32 end_address = uheapPageAllocBreak;
+	size = ROUNDUP(size, PAGE_SIZE);
 
+
+    int r = sys_size_of_shared_object(sys_getenvid(), sharedVarName);
+	cprintf("size: %d\n", r);
+    if(r >= 1) return NULL;
+
+	//CASE 1: EXACT fit
+	uint32 res_address = 0;
+	for (uint32 i = start_address; i < end_address;){
+		if(!is_allocated(i)){
+			uint32 j = i;
+			uint32 gap_size = 0;
+			while(j < end_address && !is_allocated(j)){
+				j += PAGE_SIZE;
+			}
+			gap_size = j - i;
+			if(gap_size == size){
+				res_address = i;
+				break;
+			}
+			i = j;
+		}else{
+			i += PAGE_SIZE;
+		}
+	}
+	if(res_address == 0){
+		// CASE 2: WORST FIT
+		uint32 max_size = 0;
+		for (uint32 i = start_address; i < end_address;){
+			if(!is_allocated(i)){
+				uint32 j = i;
+				uint32 gap_size = 0;
+				while(j < end_address && !is_allocated(j)){
+					j += PAGE_SIZE;
+				}
+				gap_size = j - i;
+				if(gap_size >= size && gap_size > max_size){
+					res_address = i;
+					max_size = gap_size;
+				}
+				i = j;
+			}else{
+				i += PAGE_SIZE;
+			}
+		}
+	}
+
+	if(res_address == 0){
+		uint32 size_needed = size + uheapPageAllocBreak;
+		if(size_needed <= USER_HEAP_MAX){
+			res_address = uheapPageAllocBreak;
+			uheapPageAllocBreak += size;
+		}
+	}
+
+	if(res_address == 0) return NULL;
+
+	int ret = sys_create_shared_object(sharedVarName, size, isWritable, (uint32*)res_address);
+	if(ret == E_NO_SHARE) return NULL;
+
+	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
+		uheap[i >> 12] = 1;
+	}
+	cprintf("%s successfully allocated in %x\n", sharedVarName, res_address);
+	return (uint32*) res_address;
 	//Comment the following line
-	panic("smalloc() is not implemented yet...!!");
+	//panic("smalloc() is not implemented yet...!!");
 }
 
 //========================================
@@ -260,16 +327,88 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 //========================================
 void* sget(int32 ownerEnvID, char *sharedVarName)
 {
-//==============================================================
+	cprintf(" ===== sget %s called and env id is : %d\n", sharedVarName,sys_getenvid());
+	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	uheap_init();
 	//==============================================================
 
+	int shr_size = sys_size_of_shared_object(ownerEnvID, sharedVarName);
+	if(shr_size == E_SHARED_MEM_NOT_EXISTS){
+		return NULL;
+	}
 
+	uint32 start_address = uheapPageAllocStart;
+	uint32 end_address = uheapPageAllocBreak;
+    uint32 size = ROUNDUP(shr_size, PAGE_SIZE);
+
+    //CASE 1: EXACT fit
+	uint32 res_address = 0;
+	for (uint32 i = start_address; i < end_address;){
+		if(!is_allocated(i)){
+			uint32 j = i;
+			uint32 gap_size = 0;
+			while(j < end_address && !is_allocated(j)){
+				j += PAGE_SIZE;
+			}
+			gap_size = j - i;
+			if(gap_size == size){
+				res_address = i;
+				break;
+			}
+			i = j;
+		}else{
+			i += PAGE_SIZE;
+		}
+	}
+	if(res_address == 0){
+		// CASE 2: WORST FIT
+		uint32 max_size = 0;
+		for (uint32 i = start_address; i < end_address;){
+			if(!is_allocated(i)){
+				uint32 j = i;
+				uint32 gap_size = 0;
+				while(j < end_address && !is_allocated(j)){
+					j += PAGE_SIZE;
+				}
+				gap_size = j - i;
+				if(gap_size >= size && gap_size > max_size){
+					res_address = i;
+					max_size = gap_size;
+				}
+				i = j;
+			}else{
+				i += PAGE_SIZE;
+			}
+		}
+	}
+
+	if(res_address == 0){
+		uint32 size_needed = size + uheapPageAllocBreak;
+		if(size_needed <= USER_HEAP_MAX){
+			res_address = uheapPageAllocBreak;
+			uheapPageAllocBreak += size;
+		}
+	}
+
+	if(res_address == 0){
+		return NULL;
+	}
+
+	int ret = sys_get_shared_object(ownerEnvID, sharedVarName, (uint32*)res_address);
+	if(ret == E_SHARED_MEM_NOT_EXISTS){
+		return NULL;
+	}
+
+	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
+		uheap[i >> 12] = 1;
+	}
+
+	return (uint32*)res_address;
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #4 sget
 	//Your code is here
 	//Comment the following line
-	panic("sget() is not implemented yet...!!");
+	//panic("sget() is not implemented yet...!!");
 }
 
 

@@ -111,7 +111,8 @@ void calculate_allocated_space(uint32* page_directory, uint32 sva, uint32 eva, u
 //=====================================
 // 7) CALCULATE REQUIRED FRAMES IN RAM:
 //=====================================
-//This function should calculate the required number of pages for allocating and mapping the given range [start va, start va + size) (either for the pages themselves or for the page tables required for mapping)
+//This function should calculate the required number of pages for allocating and mapping the given range
+//[start va, start va + size) (either for the pages themselves or for the page tables required for mapping)
 //	Pages and/or page tables that are already exist in the range SHOULD NOT be counted.
 //	The given range(s) may be not aligned on 4 KB
 uint32 calculate_required_frames(uint32* page_directory, uint32 sva, uint32 size)
