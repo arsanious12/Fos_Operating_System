@@ -277,9 +277,76 @@ void free_share(struct Share* ptrShare)
 	//TODO: [PROJECT'25.BONUS#5] EXIT #2 - free_share
 	//Your code is here
 	//Comment the following line
-	panic("free_share() is not implemented yet...!!");
+	//panic("free_share() is not implemented yet...!!");
+	acquire_kspinlock(&AllShares.shareslock);
+	LIST_REMOVE(&AllShares.shares_list, ptrShare);
+	release_kspinlock(&AllShares.shareslock);
+	kfree(ptrShare);
 }
 
+
+struct Share* get_share_object_ID(int32 sharedObjectID){
+	struct Share * ret = NULL;
+	bool wasHeld = holding_kspinlock(&(AllShares.shareslock));
+	if (!wasHeld)
+	{
+		acquire_kspinlock(&(AllShares.shareslock));
+	}
+	{
+		struct Share * shr ;
+		LIST_FOREACH(shr, &(AllShares.shares_list))
+		{
+			//cprintf("shared var name = %s compared with %s\n", name, shr->name);
+			if(shr->ID == sharedObjectID)
+			{
+				ret = shr;
+				break;
+			}
+		}
+	}
+	if (!wasHeld)
+	{
+		release_kspinlock(&(AllShares.shareslock));
+	}
+	return ret;
+}
+
+int32 get_shared_object_id(void* virtual_address){
+	struct Share * ret = NULL;
+	struct Env * e = get_cpu_proc();
+	uint32 va = (uint32)virtual_address;
+	bool wasHeld = holding_kspinlock(&(AllShares.shareslock));
+	if (!wasHeld)
+	{
+		acquire_kspinlock(&(AllShares.shareslock));
+	}
+	{
+		struct Share * shr ;
+		LIST_FOREACH(shr, &(AllShares.shares_list))
+		{
+			uint32 size = ROUNDUP(shr->size, PAGE_SIZE);
+			int framesCount = size / PAGE_SIZE;
+
+			for (int i = 0; i < framesCount; ++i){
+				uint32* ptr_pg_table = NULL;
+				int ret = get_page_table(e->env_page_directory, (va + PAGE_SIZE*i), &ptr_pg_table);
+				if(ret == TABLE_NOT_EXIST){
+					continue;
+				}
+				if(shr->framesStorage[i] != get_frame_info(e->env_page_directory, (va + PAGE_SIZE*i), &ptr_pg_table)){
+					continue;
+				}
+			}
+			ret = shr;
+			break;
+		}
+	}
+	if (!wasHeld)
+	{
+		release_kspinlock(&(AllShares.shareslock));
+	}
+	return ret->ID;
+}
 
 //=========================
 // [2] Free Share Object:
@@ -289,10 +356,32 @@ int delete_shared_object(int32 sharedObjectID, void *startVA)
 	//TODO: [PROJECT'25.BONUS#5] EXIT #2 - delete_shared_object
 	//Your code is here
 	//Comment the following line
-	panic("delete_shared_object() is not implemented yet...!!");
+	//panic("delete_shared_object() is not implemented yet...!!");
 
 	struct Env* myenv = get_cpu_proc(); //The calling environment
 
+	struct Share* shr_to_del = get_share_object_ID(sharedObjectID);
+	if(shr_to_del==NULL) return E_SHARED_MEM_NOT_EXISTS;
+
+
+	uint32 size = ROUNDUP(shr_to_del->size, PAGE_SIZE);
+	int framesCount = size / PAGE_SIZE;
+	uint32 va = (uint32)startVA;
+
+	for (int i = 0; i < framesCount; ++i){
+		unmap_frame(myenv->env_page_directory,va + PAGE_SIZE*i);
+	}
+	shr_to_del->references--;
+
+	if(shr_to_del->references == 0){
+		for (int i = 0; i< framesCount; ++i){
+			free_frame(shr_to_del->framesStorage[i]);
+		}
+		kfree(shr_to_del->framesStorage);
+		free_share(shr_to_del);
+	}
+	tlbflush();
+	return 0;
 	// This function should free (delete) the shared object from the User Heapof the current environment
 	// If this is the last shared env, then the "frames_store" should be cleared and the shared object should be deleted
 	// RETURN:
