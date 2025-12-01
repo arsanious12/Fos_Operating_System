@@ -563,6 +563,17 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 					//victimWSElement=newElem;
 					LIST_INSERT_BEFORE(&(e->page_WS_list),victimWSElement,newElem);
 					LIST_REMOVE(&(e->page_WS_list),victimWSElement);
+					struct WorkingSetElement* temp;
+
+					while(1==1){
+						struct WorkingSetElement* iter=LIST_FIRST(&(e->page_WS_list));
+
+						temp=iter;
+						LIST_REMOVE(&(e->page_WS_list),iter);
+						LIST_INSERT_TAIL(&(e->page_WS_list),temp);
+						if(iter==newElem)
+							break;
+					}
 					//LIST_INSERT_TAIL(&(e->page_WS_list),newElem);
 					uint32 curSize = LIST_SIZE(&e->page_WS_list);
 					//if (curSize == e->page_WS_max_size){
