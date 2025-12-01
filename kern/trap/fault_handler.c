@@ -449,10 +449,69 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		{
 			if (isPageReplacmentAlgorithmCLOCK())
 			{
+				fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+				struct FrameInfo *NewFrame=NULL;
+
+				allocate_frame(&NewFrame);
+				map_frame(faulted_env->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER);
+				int res = pf_read_env_page(faulted_env,(uint32*)fault_va);
+				//cprintf("Ah\n");
+				int to_be_placed = 0;
+				if(res == E_PAGE_NOT_EXIST_IN_PF){
+					//cprintf("Ah2\n");
+					if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
+						//cprintf("Ah3\n");
+						to_be_placed = 1;
+
+					}
+				}else{
+					to_be_placed = 1;
+				}
+				if(to_be_placed){
+					//cprintf("alloc");
+					struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
+					struct WorkingSetElement* it = faulted_env->page_last_WS_element;
+					while (1 == 1){
+						if((pt_get_page_permissions(faulted_env->env_page_directory,(uint32)it->virtual_address) & PERM_USED) == PERM_USED){
+							pt_set_page_permissions(faulted_env->env_page_directory,it->virtual_address,0,PERM_USED);
+						}
+						else{
+							//struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
+							LIST_INSERT_BEFORE(&faulted_env->page_WS_list,it,newElem);
+							unmap_frame(faulted_env->env_page_directory, it->virtual_address);
+
+							if (LIST_NEXT(it) == NULL){
+								it = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
+							}
+							else{
+								it = LIST_NEXT(it);
+							}
+							LIST_REMOVE(&faulted_env->page_WS_list,LIST_PREV(it));
+							break;
+						}
+						if(LIST_NEXT(it) == NULL){
+							it = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
+						}
+						else{
+							it = LIST_NEXT(it);
+						}
+
+					}
+
+					//curSize = LIST_SIZE(&faulted_env->page_WS_list);
+
+				}else{
+					cprintf("no alloc");
+					unmap_frame(faulted_env->env_page_directory, fault_va);
+					env_exit();
+				}
+
 				//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #3 Clock Replacement
 				//Your code is here
 				//Comment the following line
-				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+				//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+
+
 			}
 			else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX))
 			{
