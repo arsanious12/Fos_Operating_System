@@ -103,6 +103,7 @@ void fault_handler(struct Trapframe *tf)
 		if (num_repeated_fault == 3)
 		{
 			print_trapframe(tf);
+			cprintf("fault_handler2\n");
 			panic("Failed to handle fault! fault @ at va = %x from eip = %x causes va (%x) to be faulted for 3 successive times\n", before_last_fault_va, before_last_eip, fault_va);
 		}
 	}
@@ -156,6 +157,7 @@ void fault_handler(struct Trapframe *tf)
 	//If the directory entry of the faulted address is NOT PRESENT then
 	if ( (faulted_env->env_page_directory[PDX(fault_va)] & PERM_PRESENT) != PERM_PRESENT)
 	{
+		cprintf("fault_handler2\n");
 		faulted_env->tableFaultsCounter ++ ;
 		table_fault_handler(faulted_env, fault_va);
 	}
@@ -289,7 +291,7 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct
 	panic("get_optimal_num_faults() is not implemented yet...!!");
 }
 
-
+#define AgeMSBFlag ((uint32)1<<31)
 void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 {
 #if USE_KHEAP
@@ -354,29 +356,62 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			{
 
 				/////////////////////////////////////////////LRU/////////////////////////////////////////////////
-				 cprintf("IN LRU");
+				 cprintf("IN LRU\n");
 				 struct WorkingSetElement*wst=LIST_FIRST(&(faulted_env->page_WS_list));//3lshan ageb a'al wahed fehom used atl3o victim
-				 struct WorkingSetElement*vic=wst;
-				while(wst!=NULL){//h loop 3la elWS kolha atl3 a'al used fehom
-					if(wst->time_stamp < vic->time_stamp){
-						vic=wst;
+				 victimWSElement=wst;
+				 struct WorkingSetElement *it=NULL;
+				LIST_FOREACH( it , &faulted_env->page_WS_list){//h loop 3la elWS kolha atl3 a'al used fehom
+					if(it->time_stamp < victimWSElement->time_stamp){
+						victimWSElement=it;
 					}
-					wst=wst->prev_next_info.le_next;
-				}
-				//3lshan y write lw hya modified
-				uint32 pe=pt_get_page_permissions(faulted_env->env_page_directory,vic->virtual_address);
-				if(pe&PERM_MODIFIED){
-					uint32 *p=NULL;
-					get_page_table(faulted_env->env_page_directory,vic->virtual_address,&p);
-					struct FrameInfo*fr=get_frame_info(faulted_env->env_page_directory,vic->virtual_address,&p);
-					pf_update_env_page(faulted_env,vic->virtual_address,fr);
+
 				}
 
-				unmap_frame(faulted_env->env_page_directory,vic->virtual_address);
-				LIST_REMOVE(&(faulted_env->page_WS_list),vic);
-				struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
-				LIST_INSERT_TAIL(&(faulted_env->page_WS_list),newElem);
-				faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
+				//3lshan y write lw hya modified
+				uint32 pe=pt_get_page_permissions(faulted_env->env_page_directory,victimWSElement->virtual_address);
+				if(pe&PERM_MODIFIED){
+					uint32 *p=NULL;
+					get_page_table(faulted_env->env_page_directory,victimWSElement->virtual_address,&p);
+					struct FrameInfo*fr=get_frame_info(faulted_env->env_page_directory,victimWSElement->virtual_address,&p);
+					pf_update_env_page(faulted_env,victimWSElement->virtual_address,fr);
+				}
+				fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+				unmap_frame(faulted_env->env_page_directory,victimWSElement->virtual_address);
+				LIST_REMOVE(&(faulted_env->page_WS_list),victimWSElement);
+				struct FrameInfo *NewFrame=NULL;
+				allocate_frame(&NewFrame);
+				map_frame(faulted_env->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER);
+				int res = pf_read_env_page(faulted_env,(uint32*)fault_va);
+				//cprintf("Ah\n");
+				int to_be_placed = 0;
+				if(res == E_PAGE_NOT_EXIST_IN_PF){
+					//cprintf("Ah2\n");
+					if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
+						//cprintf("Ah3\n");
+						to_be_placed = 1;
+
+					}
+				}else{
+					to_be_placed = 1;
+				}
+				if(to_be_placed){
+					struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
+					LIST_INSERT_TAIL(&(faulted_env->page_WS_list),newElem);
+					uint32 curSize = LIST_SIZE(&faulted_env->page_WS_list);
+					if (curSize == faulted_env->page_WS_max_size){
+						faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
+					}
+				}else{
+					unmap_frame(faulted_env->env_page_directory, fault_va);
+					env_exit();
+				}
+				//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
+				//Your code is here
+				//Comment the following line
+				//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+
+			//env_page_ws_print(faulted_env);
+
 				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #2 LRU Aging Replacement
 				//Your code is here
 				//Comment the following line
@@ -386,10 +421,164 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 			else if (isPageReplacmentAlgorithmModifiedCLOCK())
 			{
+				  //cprintf("in function \n");
+				struct Env* e =  faulted_env;
+				struct WorkingSetElement *victimWSElement = NULL;
+				struct WorkingSetElement *fb=NULL;//for FALLBACK (0,1)
+				struct WorkingSetElement *hell=e->page_last_WS_element;
+				bool ty1=0;
+				if(hell == NULL){//lw dy awel run yebda' mn elhead
+					//cprintf("NULL hell \n");
+					hell=LIST_FIRST(&(e->page_WS_list));
+				}
+				uint32 wCount=LIST_SIZE(&(e->page_WS_list));
+				//cprintf("List of size : %d\n",wCount);
+				uint32 check=0;
+				cprintf("BEFORE: \n");
+				env_page_ws_print(e);
+				while(victimWSElement==NULL){
+					//cprintf("in while LOOP \n");
+				 int pe=pt_get_page_permissions(e->env_page_directory,hell->virtual_address);
+				  if(pe<0|| !(pe&PERM_PRESENT) )// lw elpage not present aw invalid
+				  {
+					 //hell=LIST_NEXT(hell);//skip it
+					  if(LIST_NEXT(hell)==NULL){
+					  	hell=LIST_FIRST(&(e->page_WS_list));
+
+					  }
+					  else
+					  	hell=LIST_NEXT(hell);
+					 // check++;
+					  continue;
+				  }
+				  int us=(pe&PERM_USED);
+				  int mo=(pe&PERM_MODIFIED);
+				  if(ty1==0){
+					  //cprintf("IN IF \n");
+				  if(!us&&!mo){
+					  cprintf("0,0\n");
+					  victimWSElement=hell;
+					  if(LIST_NEXT(hell)==NULL){
+						  e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
+					   }
+					  else
+						  e->page_last_WS_element=LIST_NEXT(hell);
+					  break;
+				  }
+				  }
+				  else{
+					 // cprintf("ELSE \n");
+				  if(!us&&mo&&fb==NULL){
+					  cprintf("0,1\n");
+					  victimWSElement=hell;
+					  if(LIST_NEXT(hell)==NULL){
+					  	 e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
+					  	}
+					  else
+					    e->page_last_WS_element=LIST_NEXT(hell);
+					  break;
+				   }
+				  if(us){
+					  cprintf("1 HELL %x\n",hell);
+					  pt_set_page_permissions(e->env_page_directory,hell->virtual_address,0,PERM_USED); //3lshan akhleha zero llnext iteration
+//					  if(LIST_NEXT(hell)==NULL)
+//					 	hell=LIST_FIRST(&(e->page_WS_list));
+//					  else
+//					   hell=LIST_NEXT(hell);
+//					  check++;
+//					  continue;
+				  }
+				  }
+				  if(LIST_NEXT(hell)==NULL){
+				  	hell=LIST_FIRST(&(e->page_WS_list));
+				  	e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
+
+				  }
+				  else{
+				   hell=LIST_NEXT(hell);
+				   e->page_last_WS_element=hell;
+				  }
+				  check++;
+				  if(check==wCount){
+					check=0;
+					 if(ty1==0){
+					  ty1=1;
+					  }
+					 else
+					  ty1=0;
+
+				  }
+
+				}
+
+//				  if(victimWSElement==NULL){
+//					  cprintf("FALLBACK %d\n",fb);
+//					  victimWSElement=fb;
+//				  }
+				  if(victimWSElement==NULL){//Nothing matched f hashel elly hell is pointing to
+
+					  //cprintf("CHECK %d\n",check);
+					  victimWSElement=hell;
+				   }
+				  uint32 pe=pt_get_page_permissions(e->env_page_directory,victimWSElement->virtual_address);
+				  if(pe&PERM_MODIFIED){
+					  cprintf("Modify\n");
+				  	uint32 *p=NULL;
+				  	get_page_table(e->env_page_directory,victimWSElement->virtual_address,&p);
+				  	struct FrameInfo*fr=get_frame_info(e->env_page_directory,victimWSElement->virtual_address,&p);
+				  	pf_update_env_page(e,victimWSElement->virtual_address,fr);
+				}
+				struct WorkingSetElement *NNN = LIST_NEXT(victimWSElement);
+				if(NNN==NULL){
+				 cprintf("FIFO\n");
+				 NNN=LIST_FIRST(&(e->page_WS_list));
+				}
+				fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+				unmap_frame(e->env_page_directory,victimWSElement->virtual_address);
+				//LIST_REMOVE(&(e->page_WS_list),victimWSElement);
+				cprintf("List of size AFTER : %d\n",LIST_SIZE(&(e->page_WS_list)));
+				if(LIST_EMPTY(&(e->page_WS_list)))
+				  e->page_last_WS_element=NULL;
+				else
+				 e->page_last_WS_element=NNN;
+
+				struct FrameInfo *NewFrame=NULL;
+				allocate_frame(&NewFrame);
+				map_frame(e->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER|PERM_USED);
+				int res = pf_read_env_page(e,(uint32*)fault_va);
+				cprintf("Ah\n");
+				int to_be_placed = 0;
+				if(res == E_PAGE_NOT_EXIST_IN_PF){
+					cprintf("Ah2\n");
+					if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
+					cprintf("Ah3\n");
+					to_be_placed = 1;
+					}
+				}
+				else{
+				to_be_placed = 1;
+				}
+				if(to_be_placed){
+					struct WorkingSetElement* newElem = env_page_ws_list_create_element(e,fault_va);
+					//victimWSElement=newElem;
+					LIST_INSERT_BEFORE(&(e->page_WS_list),victimWSElement,newElem);
+					LIST_REMOVE(&(e->page_WS_list),victimWSElement);
+					//LIST_INSERT_TAIL(&(e->page_WS_list),newElem);
+					uint32 curSize = LIST_SIZE(&e->page_WS_list);
+					//if (curSize == e->page_WS_max_size){
+					//e->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&e->page_WS_list);
+					//}
+				}else{
+					cprintf("PPPP\n");
+				unmap_frame(e->env_page_directory, fault_va);
+				env_exit();
+				}
+				cprintf("AFTER: \n");
+				env_page_ws_print(e);
 				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
 				//Your code is here
 				//Comment the following line
-				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+				//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
 			}
 		}
 	}
