@@ -333,6 +333,7 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct
 		}
 	}
 	return cnt;
+
 }
 
 void ClearActive(struct Env * faulted_env, uint32 fault_va){
