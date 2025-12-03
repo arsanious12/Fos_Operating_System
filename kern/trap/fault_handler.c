@@ -460,8 +460,6 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				if (curSize == faulted_env->page_WS_max_size && faulted_env->page_last_WS_element == NULL){
 					faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
 				}
-				cprintf("//////////////Before pl////////////////");
-				env_page_ws_print(faulted_env);
 
 			}else{
 				unmap_frame(faulted_env->env_page_directory, fault_va);
@@ -495,13 +493,10 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 					placed = 1;
 				}
 				if(placed){
-					cprintf("ptr %va:\n",faulted_env->page_last_WS_element);
 
 					struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env, fault_va);
 					struct WorkingSetElement *it = faulted_env->page_last_WS_element;
 					while (1 == 1) {
-						cprintf("//////////////Before re////////////////");
-						env_page_ws_print(faulted_env);
 						uint32 va = (uint32)it->virtual_address;
 					    if (( pt_get_page_permissions(faulted_env->env_page_directory, va) & PERM_USED) == PERM_USED) {
 					        pt_set_page_permissions(faulted_env->env_page_directory, va, 0, PERM_USED);
@@ -532,8 +527,6 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 					        break;
 					    }
 					}
-					cprintf("//////////////After re////////////////");
-					env_page_ws_print(faulted_env);
 
 				}else{
 					//cprintf("no alloc\n");
@@ -571,8 +564,6 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 						uint32 wCount=LIST_SIZE(&(e->page_WS_list));
 						//cprintf("List of size : %d\n",wCount);
 						uint32 check=0;
-						cprintf("BEFORE: \n");
-						env_page_ws_print(e);
 						while(victimWSElement==NULL){
 							//cprintf("in while LOOP \n");
 						 int pe=pt_get_page_permissions(e->env_page_directory,hell->virtual_address);
@@ -593,7 +584,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 						  if(ty1==0){
 							  //cprintf("IN IF \n");
 						  if(!us&&!mo){
-							  cprintf("0,0\n");
+							  //cprintf("0,0\n");
 							  victimWSElement=hell;
 							  if(LIST_NEXT(hell)==NULL){
 								  e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
@@ -606,7 +597,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 						  else{
 							 // cprintf("ELSE \n");
 						  if(!us&&mo&&fb==NULL){
-							  cprintf("0,1\n");
+							  //cprintf("0,1\n");
 							  victimWSElement=hell;
 							  if(LIST_NEXT(hell)==NULL){
 								 e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
@@ -616,7 +607,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 							  break;
 						   }
 						  if(us){
-							  cprintf("1 HELL %x\n",hell);
+							  //cprintf("1 HELL %x\n",hell);
 							  pt_set_page_permissions(e->env_page_directory,hell->virtual_address,0,PERM_USED); //3lshan akhleha zero llnext iteration
 		//					  if(LIST_NEXT(hell)==NULL)
 		//					 	hell=LIST_FIRST(&(e->page_WS_list));
@@ -659,7 +650,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 						   }
 						  uint32 pe=pt_get_page_permissions(e->env_page_directory,victimWSElement->virtual_address);
 						  if(pe&PERM_MODIFIED){
-							  cprintf("Modify\n");
+							  //cprintf("Modify\n");
 							uint32 *p=NULL;
 							get_page_table(e->env_page_directory,victimWSElement->virtual_address,&p);
 							struct FrameInfo*fr=get_frame_info(e->env_page_directory,victimWSElement->virtual_address,&p);
@@ -667,7 +658,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 						}
 						struct WorkingSetElement *NNN = LIST_NEXT(victimWSElement);
 						if(NNN==NULL){
-						 cprintf("FIFO\n");
+						 //cprintf("FIFO\n");
 						 NNN=LIST_FIRST(&(e->page_WS_list));
 						}
 
@@ -675,7 +666,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 						unmap_frame(e->env_page_directory,victimWSElement->virtual_address);
 						LIST_REMOVE(&faulted_env->page_WS_list, victimWSElement);
 
-						cprintf("List of size AFTER : %d\n",LIST_SIZE(&(e->page_WS_list)));
+						//cprintf("List of size AFTER : %d\n",LIST_SIZE(&(e->page_WS_list)));
 						if(LIST_EMPTY(&(e->page_WS_list)))
 						  e->page_last_WS_element=NULL;
 						else
@@ -685,12 +676,12 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 						allocate_frame(&NewFrame);
 						map_frame(e->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER|PERM_USED);
 						int res = pf_read_env_page(e,(uint32*)fault_va);
-						cprintf("Ah\n");
+						//cprintf("Ah\n");
 						int to_be_placed = 0;
 						if(res == E_PAGE_NOT_EXIST_IN_PF){
-							cprintf("Ah2\n");
+							//cprintf("Ah2\n");
 							if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
-							cprintf("Ah3\n");
+							//cprintf("Ah3\n");
 							to_be_placed = 1;
 							}
 						}
@@ -713,12 +704,12 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 								faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
 							}
 						}else{
-							cprintf("PPPP\n");
+							//cprintf("PPPP\n");
 						unmap_frame(e->env_page_directory, fault_va);
 						env_exit();
 						}
-						cprintf("AFTER: \n");
-						env_page_ws_print(e);
+						//cprintf("AFTER: \n");
+						//env_page_ws_print(e);
 						//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
 						//Your code is here
 						//Comment the following line
