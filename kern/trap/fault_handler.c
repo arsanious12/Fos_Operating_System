@@ -12,6 +12,7 @@
 #include <kern/disk/pagefile_manager.h>
 #include <kern/mem/memory_manager.h>
 #include <kern/mem/kheap.h>
+#include <inc/queue.h>
 
 //2014 Test Free(): Set it to bypass the PAGE FAULT on an instruction with this length and continue executing the next one
 // 0 means don't bypass the PAGE FAULT
@@ -378,6 +379,20 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//Your code is here
 		//Comment the following line
 		//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+
+		// [1]: keep track active WS
+		// [2]: if faulted page not in memory, read it from disk
+		//      else, just set its Present bit
+		// [3]: if the faulted page in the active WS, do nothing
+		//      else, if Active WS is full, reset present & delete all its pages
+		// [4]: Add the faulted page to the Active WS
+		// [5]: Add faulted page to the end of the ref3erence stream list
+
+		/*
+		uint32* pg_table = NULL;
+		if(!get_frame_info(faulted_env->env_page_directory, fault_va, &pg_table)){
+			int o = pf_read_env_page(faulted_env , &fault_va);
+		}
 		//cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
 		//cprintf("%d",faulted_env->page_WS_max_size);
 		//fault_va = ROUNDDOWN(fault_va,PAGE_SIZE);
@@ -394,7 +409,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		}
 		if(flag == 0){
 			//env_page_ws_print(faulted_env);
-			cprintf("Not Exist in A_WS\n");
+			//cprintf("Not Exist in A_WS\n");
 			int o = pf_read_env_page(faulted_env , &fault_va);
 			cprintf("%d\n",faulted_env->page_WS_max_size);
 			if (LIST_SIZE(&(faulted_env->ActiveList)) == faulted_env->page_WS_max_size){
@@ -406,7 +421,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		}
 		 //env_page_ws_print(faulted_env);
-
+*/
 	}
 	else
 	{
@@ -415,7 +430,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		if(wsSize < (faulted_env->page_WS_max_size))
 		{
 			cprintf("//////////////Before pl////////////////");
-			env_page_ws_print(faulted_env);
+			//env_page_ws_print(faulted_env);
 			//env_page_ws_print(faulted_env);
 			fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 			struct FrameInfo *NewFrame=NULL;

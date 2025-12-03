@@ -8,8 +8,6 @@
 #include <inc/string.h>
 #include "../inc/dynamic_allocator.h"
 
-struct Channel* dChannel_blocked;
-char* chName;
 
 //==================================================================================//
 //============================== GIVEN FUNCTIONS ===================================//
@@ -79,9 +77,6 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 daEnd)
 	for (int i = 0; i <= (LOG2_MAX_SIZE - LOG2_MIN_SIZE); ++i){
 		LIST_INIT(&freeBlockLists[i]);
 	}
-
-	chName = "dynamicBlocks";
-	init_channel(dChannel_blocked, chName);
 
 	//Comment the following line
 	//panic("initialize_dynamic_allocator() Not implemented yet");
@@ -208,7 +203,7 @@ void *alloc_block(uint32 size)
 
 	//panic("alloc_block() Not implemented yet");
 	//TODO: [PROJECT'25.BONUS#1] DYNAMIC ALLOCATOR - block if no free block
-	sleep(dChannel_blocked);
+	//sleep(dChannel_blocked);
 
 	return NULL;
 }
