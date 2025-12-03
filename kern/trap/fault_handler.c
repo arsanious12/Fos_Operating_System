@@ -426,8 +426,8 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
 		if(wsSize < (faulted_env->page_WS_max_size))
 		{
-			cprintf("//////////////Before pl////////////////");
-			env_page_ws_print(faulted_env);
+//			cprintf("//////////////Before pl////////////////");
+//			env_page_ws_print(faulted_env);
 			//env_page_ws_print(faulted_env);
 			fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 			struct FrameInfo *NewFrame=NULL;
@@ -435,12 +435,12 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			allocate_frame(&NewFrame);
 			map_frame(faulted_env->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER|PERM_USED);
 			int res = pf_read_env_page(faulted_env,(uint32*)fault_va);
-			cprintf("Ah\n");
+			//cprintf("Ah\n");
 			int to_be_placed = 0;
 			if(res == E_PAGE_NOT_EXIST_IN_PF){
-				cprintf("Ah2\n");
+				//cprintf("Ah2\n");
 				if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
-					cprintf("Ah3\n");
+					//cprintf("Ah3\n");
 					to_be_placed = 1;
 
 				}
@@ -460,8 +460,8 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				if (curSize == faulted_env->page_WS_max_size && faulted_env->page_last_WS_element == NULL){
 					faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
 				}
-				cprintf("//////////////Before pl////////////////");
-				env_page_ws_print(faulted_env);
+//				cprintf("//////////////Before pl////////////////");
+//				env_page_ws_print(faulted_env);
 
 			}else{
 				unmap_frame(faulted_env->env_page_directory, fault_va);
@@ -500,8 +500,8 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 					struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env, fault_va);
 					struct WorkingSetElement *it = faulted_env->page_last_WS_element;
 					while (1 == 1) {
-						cprintf("//////////////Before re////////////////");
-						env_page_ws_print(faulted_env);
+//						cprintf("//////////////Before re////////////////");
+//						env_page_ws_print(faulted_env);
 						uint32 va = (uint32)it->virtual_address;
 					    if (( pt_get_page_permissions(faulted_env->env_page_directory, va) & PERM_USED) == PERM_USED) {
 					        pt_set_page_permissions(faulted_env->env_page_directory, va, 0, PERM_USED);
@@ -532,8 +532,8 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 					        break;
 					    }
 					}
-					cprintf("//////////////After re////////////////");
-					env_page_ws_print(faulted_env);
+//					cprintf("//////////////After re////////////////");
+//					env_page_ws_print(faulted_env);
 
 				}else{
 					//cprintf("no alloc\n");
