@@ -916,7 +916,7 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 //			cprintf("hhh\n");
 //
 //		}
-		cprintf("create_user_kern_stack1\n");
+		//cprintf("create_user_kern_stack1\n");
 		//uint32* table_address = PTX(Kernal_ptr);
 		if(Kernal_ptr== 0){
 			panic("Heap is Full");
@@ -925,7 +925,7 @@ void* create_user_kern_stack(uint32* ptr_user_page_directory)
 		int o = get_page_table(ptr_user_page_directory,Kernal_ptr,&table); // 10 10 12
 		table[PTX(Kernal_ptr)] = (table[PTX(Kernal_ptr)]& ~PERM_PRESENT);
 		//Kernal_ptr += PAGE_SIZE;
-		cprintf("create_user_kern_stack2\n");
+		//cprintf("create_user_kern_stack2\n");
 		return (uint32*)Kernal_ptr;
 	//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #1 create_user_kern_stack
 	//Your code is here
@@ -989,7 +989,11 @@ void initialize_environment(struct Env* e, uint32* ptr_user_page_directory, unsi
 	{
 		e->env_page_directory[i] = ptr_page_directory[i] ;
 	}
-
+	/*
+		for (int i = 0; i < 1024*1024; ++i){
+			e->uheap_pages[i] = 0;
+		}
+	 */
 	/*2024
 	 * Create the User Kernel Stack for this process (to be used for the trap/interrupt)
 	 * Place the trap frame at the stack top (will be set during the interrupt/trap)

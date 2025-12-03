@@ -58,7 +58,7 @@ _main(void)
 		{panic("Wrong page file allocation: ");}
 	}
 	sys_unlock_cons();
-
+	//cprintf("\n========= y = %d z = %d with addr : %x ========\n", *y, *z,  y);
 	if (*y != 20) panic("Get(): Shared Variable is not created or got correctly") ;
 
 	sys_lock_cons();

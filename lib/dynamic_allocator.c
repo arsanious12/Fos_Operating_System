@@ -76,6 +76,12 @@ void initialize_dynamic_allocator(uint32 daStart, uint32 daEnd)
 	for (int i = 0; i <= (LOG2_MAX_SIZE - LOG2_MIN_SIZE); ++i){
 		LIST_INIT(&freeBlockLists[i]);
 	}
+
+	/*
+	struct Env* e = get_cpu_proc();
+	char* chName = "dynamicBlocks";
+	init_channel(e, chName);
+	*/
 	//Comment the following line
 	//panic("initialize_dynamic_allocator() Not implemented yet");
 

@@ -78,7 +78,6 @@ _main(void)
 
 	*x = 10 ;
 	*y = 20 ;
-
 	int id1, id2, id3;
 	id1 = sys_create_env("shr2Slave1", (myEnv->page_WS_max_size),(myEnv->SecondListSize), (myEnv->percentage_of_WS_pages_to_be_removed));
 	id2 = sys_create_env("shr2Slave1", (myEnv->page_WS_max_size), (myEnv->SecondListSize),(myEnv->percentage_of_WS_pages_to_be_removed));
