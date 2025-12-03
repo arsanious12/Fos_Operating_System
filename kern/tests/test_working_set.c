@@ -187,7 +187,7 @@ int sys_check_WS_list(uint32* WS_list_content, int actual_WS_list_size, uint32 l
 
 				for (int i = 0; i < actual_WS_list_size; ++i)
 				{
-					//cprintf("check against index %d, va = %x\n", idx_WS_list, ptr_WS_element->virtual_address);
+					cprintf("check against index %d, va = %x\n", idx_WS_list, ptr_WS_element->virtual_address);
 					if (ROUNDDOWN(ptr_WS_element->virtual_address, PAGE_SIZE) != ROUNDDOWN(WS_list_content[idx_WS_list], PAGE_SIZE))
 					{
 						cprintf("WS MISMATCHED @INDEX %d!!! Actual = %x Expected = %x\n",idx_WS_list, ROUNDDOWN(ptr_WS_element->virtual_address, PAGE_SIZE), ROUNDDOWN(WS_list_content[idx_WS_list], PAGE_SIZE));
