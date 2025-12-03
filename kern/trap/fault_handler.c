@@ -388,11 +388,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		// [4]: Add the faulted page to the Active WS
 		// [5]: Add faulted page to the end of the ref3erence stream list
 
-		/*
-		uint32* pg_table = NULL;
-		if(!get_frame_info(faulted_env->env_page_directory, fault_va, &pg_table)){
-			int o = pf_read_env_page(faulted_env , &fault_va);
-		}
+
 		//cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
 		//cprintf("%d",faulted_env->page_WS_max_size);
 		//fault_va = ROUNDDOWN(fault_va,PAGE_SIZE);
@@ -421,7 +417,6 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		}
 		 //env_page_ws_print(faulted_env);
-*/
 	}
 	else
 	{
