@@ -543,10 +543,68 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			}
 			else if (isPageReplacmentAlgorithmLRU(PG_REP_LRU_TIME_APPROX))
 			{
+
+				/////////////////////////////////////////////LRU/////////////////////////////////////////////////
+				 cprintf("IN LRU\n");
+				 struct WorkingSetElement*wst=LIST_FIRST(&(faulted_env->page_WS_list));//3lshan ageb a'al wahed fehom used atl3o victim
+				 victimWSElement=wst;
+				 struct WorkingSetElement *it=NULL;
+				LIST_FOREACH( it , &faulted_env->page_WS_list){//h loop 3la elWS kolha atl3 a'al used fehom
+					if(it->time_stamp < victimWSElement->time_stamp){
+						victimWSElement=it;
+					}
+
+				}
+
+				//3lshan y write lw hya modified
+				uint32 pe=pt_get_page_permissions(faulted_env->env_page_directory,victimWSElement->virtual_address);
+				if(pe&PERM_MODIFIED){
+					uint32 *p=NULL;
+					get_page_table(faulted_env->env_page_directory,victimWSElement->virtual_address,&p);
+					struct FrameInfo*fr=get_frame_info(faulted_env->env_page_directory,victimWSElement->virtual_address,&p);
+					pf_update_env_page(faulted_env,victimWSElement->virtual_address,fr);
+				}
+				fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+				unmap_frame(faulted_env->env_page_directory,victimWSElement->virtual_address);
+				LIST_REMOVE(&(faulted_env->page_WS_list),victimWSElement);
+				struct FrameInfo *NewFrame=NULL;
+				allocate_frame(&NewFrame);
+				map_frame(faulted_env->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER);
+				int res = pf_read_env_page(faulted_env,(uint32*)fault_va);
+				//cprintf("Ah\n");
+				int to_be_placed = 0;
+				if(res == E_PAGE_NOT_EXIST_IN_PF){
+					//cprintf("Ah2\n");
+					if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
+						//cprintf("Ah3\n");
+						to_be_placed = 1;
+
+					}
+				}else{
+					to_be_placed = 1;
+				}
+				if(to_be_placed){
+					struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
+					LIST_INSERT_TAIL(&(faulted_env->page_WS_list),newElem);
+					uint32 curSize = LIST_SIZE(&faulted_env->page_WS_list);
+					if (curSize == faulted_env->page_WS_max_size){
+						faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
+					}
+				}else{
+					unmap_frame(faulted_env->env_page_directory, fault_va);
+					env_exit();
+				}
+				//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
+				//Your code is here
+				//Comment the following line
+				//panic("page_fault_handler().PLACEMENT is not implemented yet...!!");
+
+				//env_page_ws_print(faulted_env);
+
 				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #2 LRU Aging Replacement
 				//Your code is here
 				//Comment the following line
-				panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+				//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
 			}
 			else if (isPageReplacmentAlgorithmModifiedCLOCK())
 			{
