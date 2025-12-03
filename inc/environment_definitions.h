@@ -148,6 +148,7 @@ struct Env {
 #if USE_KHEAP
 	struct WS_List page_WS_list ;					//List of WS elements
 	struct WorkingSetElement* page_last_WS_element;	//ptr to last inserted WS element
+
 	struct PageRef_List referenceStreamList;		//List of page references stream to be used for OPTIMAL replacement strategy
 	uint32 *prepagedVAs;							//Initial virtual addresses after fetching the process into RAM
 	uint32 numOfPrepagedVAs;						//Number of prepaged VAs
