@@ -12,7 +12,7 @@
 #include "memory_manager.h"
 #include <inc/queue.h>
 
-//extern void inctst();
+//extern void inctst()
 
 /******************************/
 /*[1] RAM CHUNKS MANIPULATION */
@@ -111,7 +111,8 @@ void calculate_allocated_space(uint32* page_directory, uint32 sva, uint32 eva, u
 //=====================================
 // 7) CALCULATE REQUIRED FRAMES IN RAM:
 //=====================================
-//This function should calculate the required number of pages for allocating and mapping the given range [start va, start va + size) (either for the pages themselves or for the page tables required for mapping)
+//This function should calculate the required number of pages for allocating and mapping the given range
+//[start va, start va + size) (either for the pages themselves or for the page tables required for mapping)
 //	Pages and/or page tables that are already exist in the range SHOULD NOT be counted.
 //	The given range(s) may be not aligned on 4 KB
 uint32 calculate_required_frames(uint32* page_directory, uint32 sva, uint32 size)
@@ -152,11 +153,20 @@ void allocate_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 //		inctst();
 //		return;
 	/*====================================*/
-
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #2 allocate_user_mem
 	//Your code is here
 	//Comment the following line
-	panic("allocate_user_mem() is not implemented yet...!!");
+	/*panic("allocate_user_mem() is not implemented yet...!!");*/
+	for(uint32 i=virtual_address;i<(virtual_address+size);i+=PAGE_SIZE){
+	uint32 * pg_table=NULL;
+
+    int ret=get_page_table(e->env_page_directory,i,&pg_table);
+    if(ret==TABLE_NOT_EXIST){
+    	create_page_table(e->env_page_directory,i);
+    	}
+
+    pt_set_page_permissions(e->env_page_directory,i,PERM_UHPAGE|PERM_USER,0);
+}
 }
 
 //=====================================
@@ -166,14 +176,27 @@ void free_user_mem(struct Env* e, uint32 virtual_address, uint32 size)
 {
 	/*====================================*/
 	/*Remove this line before start coding*/
-//		inctst();
-//		return;
+//	inctst();
+//	return;
 	/*====================================*/
 
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #4 free_user_mem
 	//Your code is here
 	//Comment the following line
-	panic("free_user_mem() is not implemented yet...!!");
+	//panic("free_user_mem() is not implemented yet...!!");
+	for(uint32 i=virtual_address;i<(virtual_address+size);i+=PAGE_SIZE){
+		uint32 * pg_table=NULL;
+
+	    int ret=get_page_table(e->env_page_directory,i,&pg_table);
+	    if(ret==TABLE_NOT_EXIST){
+	    	continue;
+	    	}
+
+	    pt_set_page_permissions(e->env_page_directory,i,0,PERM_UHPAGE|PERM_USER);
+	    env_page_ws_invalidate(e,i);
+	    pf_remove_env_page(e,i);
+	}
+
 }
 
 //=====================================

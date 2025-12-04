@@ -8,6 +8,16 @@
 // [1] INITIALIZE USER HEAP:
 //==============================================
 int __firstTimeFlag = 1;
+
+struct uheap_page{
+
+	int marked;
+	uint32 va;
+	uint32 size;
+};
+struct uheap_page uheap_pages[NUM_OF_UHEAP_PAGES];
+//bool uheap[1024*1024];
+
 void uheap_init()
 {
 	if(__firstTimeFlag)
@@ -16,8 +26,15 @@ void uheap_init()
 		uheapPlaceStrategy = sys_get_uheap_strategy();
 		uheapPageAllocStart = dynAllocEnd + PAGE_SIZE;
 		uheapPageAllocBreak = uheapPageAllocStart;
-
 		__firstTimeFlag = 0;
+		//for (int i = 0; i < 1024*1024; ++i) uheap[i] = 0;
+		for(uint32 i=0;i<NUM_OF_UHEAP_PAGES;i++){
+			uheap_pages[i].marked = 0;
+			uheap_pages[i].size = 0;
+			uheap_pages[i].va = 0;
+		}
+
+
 	}
 }
 
@@ -49,6 +66,21 @@ void return_page(void* va)
 //=================================
 // [1] ALLOCATE SPACE IN USER HEAP:
 //=================================
+
+
+void mark_uheap(uint32 startva,uint32 end,uint32 size,int flag){
+	uint32 k;
+	for (k = startva; k < end + flag * PAGE_SIZE; k += PAGE_SIZE) {
+
+		 //uheap[(k - uheapPageAllocStart) / PAGE_SIZE] = 1;
+		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].marked = 1;
+		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].size = size;
+		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].va = startva;
+
+	}
+	sys_allocate_user_mem(startva,ROUNDUP(size,PAGE_SIZE));
+}
+
 void* malloc(uint32 size)
 {
 	//==============================================================
@@ -59,8 +91,94 @@ void* malloc(uint32 size)
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #1 malloc
 	//Your code is here
 	//Comment the following line
-	panic("malloc() is not implemented yet...!!");
-}
+	/*panic("malloc() is not implemented yet...!!");*/
+	//////////////////////////dyn..alloc..//////////////////////////////
+	if(size<=DYN_ALLOC_MAX_BLOCK_SIZE){
+		uint32 vra=(uint32)alloc_block(size);
+		return (uint32 *)vra;
+		}
+	/////////////////////////////page///////////////////////////////////////////////
+
+	else{
+		///////////////////////////////////exact///////////////////////////////////
+
+	int flag =0;
+	uint32 startva = uheapPageAllocStart;
+	int j =0;
+	int FoundExactFit = 0;
+	int FoundworstFit = 0;
+	uint32 SumOfSizes = 0;
+
+	for (uint32 i = uheapPageAllocStart; i < uheapPageAllocBreak && j < NUM_OF_UHEAP_PAGES; i += PAGE_SIZE, j++){
+		if (uheap_pages[j].marked !=1) {
+
+			SumOfSizes += PAGE_SIZE;
+			if (flag !=1) {
+				startva = i;
+				flag = 1;
+			}
+		if (SumOfSizes == ROUNDUP(size,PAGE_SIZE) && (j + 1 < NUM_OF_UHEAP_PAGES && uheap_pages[j + 1].marked == 1)) {
+
+			mark_uheap(startva,i,size,1);
+			return (uint32*)startva;
+
+
+
+			}
+		}
+		else {
+			flag = 0;
+			SumOfSizes = 0;
+		}
+
+	}
+	//////////////////////////////////////////worst///////////////////////////////////
+uint32 maxsize = 0;
+uint32 StartOfMaxVa;
+		j = 0;
+
+		SumOfSizes = 0;
+		flag = 0;
+	for (uint32 i = uheapPageAllocStart; i < uheapPageAllocBreak && j < NUM_OF_UHEAP_PAGES; i += PAGE_SIZE, j++) {
+
+		if (!uheap_pages[j].marked) {
+			SumOfSizes += PAGE_SIZE;
+			if (maxsize < SumOfSizes) {
+				maxsize = SumOfSizes;
+				StartOfMaxVa = startva;
+			}
+		 if (flag !=1) {
+			startva = i;
+				flag = 1;
+				}
+			}
+			else {
+				flag = 0;
+				SumOfSizes = 0;
+			}
+
+		}
+		if (maxsize > size) {
+			mark_uheap(StartOfMaxVa,StartOfMaxVa+ROUNDUP(size,PAGE_SIZE),size,0);
+			return (uint32*)StartOfMaxVa;
+
+		}
+		/////////////////////////////////////////Extend/////////////////////////////////
+		if(ROUNDUP(size,PAGE_SIZE) <= (USER_HEAP_MAX-uheapPageAllocBreak)){
+			//cprintf("cancelooooooooooooooooo \n");
+
+			startva = uheapPageAllocBreak;
+			uheapPageAllocBreak +=ROUNDUP(size,PAGE_SIZE);
+			mark_uheap(startva,uheapPageAllocBreak,size,1);
+			return (uint32*)startva;
+
+		}
+	}
+	return NULL;
+
+	}
+
+
 
 //=================================
 // [2] FREE SPACE FROM USER HEAP:
@@ -70,24 +188,146 @@ void free(void* virtual_address)
 	//TODO: [PROJECT'25.IM#2] USER HEAP - #3 free
 	//Your code is here
 	//Comment the following line
-	panic("free() is not implemented yet...!!");
+	//panic("free() is not implemented yet...!!");
+	uint32 vra = (uint32) virtual_address;
+	uint32 size = 0;
+	int ct=0;
+		if(vra >= dynAllocStart && vra < dynAllocEnd){
+			struct PageInfoElement* elm = to_page_info(vra);
+			free_block(virtual_address);
+			return;
+		}
+	if(vra<uheapPageAllocStart||vra>=uheapPageAllocBreak ){
+		panic("invalid address");
+	}
+	else{
+		size=uheap_pages[(vra - uheapPageAllocStart)/PAGE_SIZE].size;
+		if(size % PAGE_SIZE !=0){
+				ct = (size/PAGE_SIZE) + 1;
+			}
+			else {
+				ct = (size/PAGE_SIZE);
+			}
+	for(uint32 i=vra;i < vra + ct*PAGE_SIZE;i += PAGE_SIZE){
+		size=uheap_pages[(vra - uheapPageAllocStart)/PAGE_SIZE].size;
+		sys_free_user_mem(i,size);
+
+
+		//uheap[(i - uheapPageAllocStart)/PAGE_SIZE] = 0;
+
+		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].marked=0;
+		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].va=0;
+		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].size=0;
+
+		}
+	uint32 NextPageVa = vra + (ct)*PAGE_SIZE;
+		if(NextPageVa == uheapPageAllocBreak){
+		for(uint32 i = uheapPageAllocBreak-PAGE_SIZE; i>= uheapPageAllocStart;i -=PAGE_SIZE){
+			if(uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].marked){
+				uheapPageAllocBreak = i + PAGE_SIZE;
+				break;
+			}
+		}
+			if(NextPageVa == uheapPageAllocBreak){
+			uheapPageAllocBreak = uheapPageAllocStart;
+			}
+	}
+
+     }
 }
 
+int is_allocated(uint32 va){
+	return uheap_pages[(va - uheapPageAllocStart) >> 12].marked;
+}
+
+//int entrance_count = 0;
 //=================================
 // [3] ALLOCATE SHARED VARIABLE:
 //=================================
 void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 {
+	//cprintf("env id is : %d\n", sys_getenvid());
 	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	uheap_init();
 	if (size == 0) return NULL ;
-	//==============================================================
-
+	//=============================================================
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #2 smalloc
 	//Your code is here
+	uint32 start_address = uheapPageAllocStart;
+	uint32 end_address = uheapPageAllocBreak;
+	size = ROUNDUP(size, PAGE_SIZE);
+
+
+    int r = sys_size_of_shared_object(sys_getenvid(), sharedVarName);
+	//cprintf("size: %d\n", r);
+    if(r >= 1) return NULL;
+
+	//CASE 1: EXACT fit
+	uint32 res_address = 0;
+	for (uint32 i = start_address; i < end_address;){
+		if(!is_allocated(i)){
+			uint32 j = i;
+			uint32 gap_size = 0;
+			while(j < end_address && !is_allocated(j)){
+				j += PAGE_SIZE;
+			}
+			gap_size = j - i;
+			if(gap_size == size){
+				res_address = i;
+				break;
+			}
+			i = j;
+		}else{
+			i += PAGE_SIZE;
+		}
+	}
+	if(res_address == 0){
+		// CASE 2: WORST FIT
+		uint32 max_size = 0;
+		for (uint32 i = start_address; i < end_address;){
+			if(!is_allocated(i)){
+				uint32 j = i;
+				uint32 gap_size = 0;
+				while(j < end_address && !is_allocated(j)){
+					j += PAGE_SIZE;
+				}
+				gap_size = j - i;
+				if(gap_size >= size && gap_size > max_size){
+					res_address = i;
+					max_size = gap_size;
+				}
+				i = j;
+			}else{
+				i += PAGE_SIZE;
+			}
+		}
+	}
+
+	if(res_address == 0){
+		uint32 size_needed = size + uheapPageAllocBreak;
+		if(size_needed <= USER_HEAP_MAX){
+			res_address = uheapPageAllocBreak;
+			uheapPageAllocBreak += size;
+		}
+	}
+
+	if(res_address == 0) return NULL;
+
+	int ret = sys_create_shared_object(sharedVarName, size, isWritable, (uint32*)res_address);
+	if(ret == E_NO_SHARE) return NULL;
+
+
+	mark_uheap(res_address, res_address + size, size, 0);
+	/*
+	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
+		uheap[i >> 12] = 1;
+	}
+	*/
+	//cprintf("%s successfully allocated in %x\n", sharedVarName, res_address);
+	return (uint32*) res_address;
 	//Comment the following line
-	panic("smalloc() is not implemented yet...!!");
+	//panic("smalloc() is not implemented yet...!!");
 }
 
 //========================================
@@ -95,15 +335,90 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 //========================================
 void* sget(int32 ownerEnvID, char *sharedVarName)
 {
+	//cprintf(" ===== sget %s called and env id is : %d\n", sharedVarName,sys_getenvid());
 	//==============================================================
 	//DON'T CHANGE THIS CODE========================================
 	uheap_init();
 	//==============================================================
 
+	int shr_size = sys_size_of_shared_object(ownerEnvID, sharedVarName);
+	if(shr_size == E_SHARED_MEM_NOT_EXISTS){
+		return NULL;
+	}
+
+	uint32 start_address = uheapPageAllocStart;
+	uint32 end_address = uheapPageAllocBreak;
+    uint32 size = ROUNDUP(shr_size, PAGE_SIZE);
+
+    //CASE 1: EXACT fit
+	uint32 res_address = 0;
+	for (uint32 i = start_address; i < end_address;){
+		if(!is_allocated(i)){
+			uint32 j = i;
+			uint32 gap_size = 0;
+			while(j < end_address && !is_allocated(j)){
+				j += PAGE_SIZE;
+			}
+			gap_size = j - i;
+			if(gap_size == size){
+				res_address = i;
+				break;
+			}
+			i = j;
+		}else{
+			i += PAGE_SIZE;
+		}
+	}
+	if(res_address == 0){
+		// CASE 2: WORST FIT
+		uint32 max_size = 0;
+		for (uint32 i = start_address; i < end_address;){
+			if(!is_allocated(i)){
+				uint32 j = i;
+				uint32 gap_size = 0;
+				while(j < end_address && !is_allocated(j)){
+					j += PAGE_SIZE;
+				}
+				gap_size = j - i;
+				if(gap_size >= size && gap_size > max_size){
+					res_address = i;
+					max_size = gap_size;
+				}
+				i = j;
+			}else{
+				i += PAGE_SIZE;
+			}
+		}
+	}
+
+	if(res_address == 0){
+		uint32 size_needed = size + uheapPageAllocBreak;
+		if(size_needed <= USER_HEAP_MAX){
+			res_address = uheapPageAllocBreak;
+			uheapPageAllocBreak += size;
+		}
+	}
+
+	if(res_address == 0){
+		return NULL;
+	}
+
+	int ret = sys_get_shared_object(ownerEnvID, sharedVarName, (uint32*)res_address);
+	if(ret == E_SHARED_MEM_NOT_EXISTS){
+		return NULL;
+	}
+
+	mark_uheap(res_address, res_address + size, size, 0);
+	/*
+	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
+		uheap[i >> 12] = 1;
+	}
+	*/
+	return (uint32*)res_address;
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #4 sget
 	//Your code is here
 	//Comment the following line
-	panic("sget() is not implemented yet...!!");
+	//panic("sget() is not implemented yet...!!");
 }
 
 
@@ -154,6 +469,8 @@ void sfree(void* virtual_address)
 	//Comment the following line
 	panic("sfree() is not implemented yet...!!");
 
+	//int32 objId = sys_get_shared_object_id(virtual_address);
+	//sys_delete_shared_object(objId, virtual_address);
 	//	1) you should find the ID of the shared variable at the given address
 	//	2) you need to call sys_freeSharedObject()
 }

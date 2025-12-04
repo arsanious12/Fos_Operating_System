@@ -261,6 +261,7 @@ void sys_allocate_chunk(uint32 virtual_address, uint32 size, uint32 perms)
 	syscall(SYS_allocate_chunk_in_mem, virtual_address, size, perms, 0, 0);
 	return ;
 }
+
 void sys_utilities(char* utilityName, int value)
 {
 	syscall(SYS_utilities, (uint32)utilityName, value, 0, 0, 0);
