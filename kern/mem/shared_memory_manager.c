@@ -356,7 +356,7 @@ int delete_shared_object(int32 sharedObjectID, void *startVA)
 	//TODO: [PROJECT'25.BONUS#5] EXIT #2 - delete_shared_object
 	//Your code is here
 	//Comment the following line
-	//panic("delete_shared_object() is not implemented yet...!!");
+	panic("delete_shared_object() is not implemented yet...!!");
 
 	struct Env* myenv = get_cpu_proc(); //The calling environment
 

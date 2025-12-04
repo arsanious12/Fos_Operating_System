@@ -12,6 +12,7 @@
 #include <kern/disk/pagefile_manager.h>
 #include <kern/mem/memory_manager.h>
 #include <kern/mem/kheap.h>
+#include <inc/queue.h>
 
 //2014 Test Free(): Set it to bypass the PAGE FAULT on an instruction with this length and continue executing the next one
 // 0 means don't bypass the PAGE FAULT
@@ -334,9 +335,6 @@ void ClearActive(struct Env * faulted_env,uint32 fault_va){
 	while(LIST_SIZE(&faulted_env->ActiveList) > 0){
 		struct WorkingSetElement *IT = LIST_FIRST(&faulted_env->ActiveList);
 		LIST_REMOVE(&faulted_env->ActiveList , IT);
-		//env_page_ws_invalidate(faulted_env,IT->virtual_address);
-		//kfree(IT);
-		//unmap_frame(faulted_env->env_page_directory,IT->virtual_address);
 		pt_set_page_permissions(faulted_env->env_page_directory,fault_va,0,PERM_PRESENT);
 	}
 
@@ -378,10 +376,75 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//Your code is here
 		//Comment the following line
 		//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+
+		// [1]: keep track active WS
+		// [2]: if faulted page not in memory, read it from disk
+		//      else, just set its Present bit
+		// [3]: if the faulted page in the active WS, do nothing
+		//      else, if Active WS is full, reset present & delete all its pages
+		// [4]: Add the faulted page to the Active WS
+		// [5]: Add faulted page to the end of the ref3erence stream list
+
 		//cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
 		//cprintf("%d",faulted_env->page_WS_max_size);
-		//fault_va = ROUNDDOWN(fault_va,PAGE_SIZE);
 
+		if(LIST_SIZE(&faulted_env->ActiveList) == 0){
+			struct WorkingSetElement* it;
+			LIST_FOREACH(it, &(faulted_env->page_WS_list)){
+				if(it == NULL) break;
+				LIST_INSERT_TAIL(&faulted_env->ActiveList, it);
+			}
+		}
+
+		fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+		uint32* pg_table = NULL;
+		struct FrameInfo* ptr_fr = get_frame_info(faulted_env->env_page_directory, fault_va, &pg_table);
+
+
+		if(!ptr_fr){
+			pf_read_env_page(faulted_env, (void*)fault_va);
+			struct FrameInfo *fr=NULL;
+			allocate_frame(&fr);
+			map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
+			//get_page_table(faulted_env->env_page_directory, fault_va, &pg_table);
+		}else{
+			pt_set_page_permissions(faulted_env->env_page_directory,fault_va,0,PERM_PRESENT);
+		}
+
+		//1: check if the active ws is changed ...
+		struct WorkingSetElement* it;
+		int exist = 0;
+		LIST_FOREACH(it , &faulted_env->ActiveList){
+			if(it->virtual_address == fault_va){
+				exist = 1;
+			}
+		}
+
+
+		if(!exist){
+			int act_size = LIST_SIZE(&faulted_env->ActiveList);
+			if(act_size == faulted_env->page_WS_max_size){
+				// reset present in all items in the list
+				while(LIST_SIZE(&faulted_env->ActiveList) > 0){
+					struct WorkingSetElement *p_it = LIST_FIRST(&faulted_env->ActiveList);
+					LIST_REMOVE(&faulted_env->ActiveList , p_it);
+					pt_set_page_permissions(faulted_env->env_page_directory,p_it->virtual_address,0,PERM_PRESENT);
+				}
+
+			}
+			struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
+			LIST_INSERT_TAIL(&(faulted_env->ActiveList),newElem);
+			struct FrameInfo *fr=NULL;
+			allocate_frame(&fr);
+			map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
+
+		}
+		struct PageRefElement *ref_elm = (struct PageRefElement* )kmalloc(sizeof(struct PageRefElement));
+		ref_elm->virtual_address = fault_va;
+		LIST_INSERT_TAIL(&faulted_env->referenceStreamList, ref_elm);
+
+
+		/*
 		struct WorkingSetElement *IT = NULL;
 
 		IT = NULL;
@@ -394,7 +457,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		}
 		if(flag == 0){
 			//env_page_ws_print(faulted_env);
-			cprintf("Not Exist in A_WS\n");
+			//cprintf("Not Exist in A_WS\n");
 			int o = pf_read_env_page(faulted_env , &fault_va);
 			cprintf("%d\n",faulted_env->page_WS_max_size);
 			if (LIST_SIZE(&(faulted_env->ActiveList)) == faulted_env->page_WS_max_size){
@@ -406,7 +469,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		}
 		 //env_page_ws_print(faulted_env);
-
+*/
 	}
 	else
 	{
@@ -415,7 +478,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		if(wsSize < (faulted_env->page_WS_max_size))
 		{
 			cprintf("//////////////Before pl////////////////");
-			env_page_ws_print(faulted_env);
+			//env_page_ws_print(faulted_env);
 			//env_page_ws_print(faulted_env);
 			fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 			struct FrameInfo *NewFrame=NULL;
