@@ -384,23 +384,34 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//      else, if Active WS is full, reset present & delete all its pages
 		// [4]: Add the faulted page to the Active WS
 		// [5]: Add faulted page to the end of the ref3erence stream list
-/*
 
-		cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
+		//cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
 		//cprintf("%d",faulted_env->page_WS_max_size);
+
+		if(LIST_SIZE(&faulted_env->ActiveList) == 0){
+			struct WorkingSetElement* it;
+			LIST_FOREACH(it, &(faulted_env->page_WS_list)){
+				if(it == NULL) break;
+				LIST_INSERT_TAIL(&faulted_env->ActiveList, it);
+			}
+		}
 
 		fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 		uint32* pg_table = NULL;
-		int r = get_page_table(faulted_env->env_page_directory, fault_va, &pg_table);
+		struct FrameInfo* ptr_fr = get_frame_info(faulted_env->env_page_directory, fault_va, &pg_table);
 
-		if(r == TABLE_NOT_EXIST){
+
+		if(!ptr_fr){
 			pf_read_env_page(faulted_env, (void*)fault_va);
-			get_page_table(faulted_env->env_page_directory, fault_va, &pg_table);
+			struct FrameInfo *fr=NULL;
+			allocate_frame(&fr);
+			map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
+			//get_page_table(faulted_env->env_page_directory, fault_va, &pg_table);
+		}else{
+			pt_set_page_permissions(faulted_env->env_page_directory,fault_va,0,PERM_PRESENT);
 		}
 
-		//pt_set_page_permissions(faulted_env->env_page_directory,fault_va,PERM_PRESENT,0);
-
-		// 1 : check if the active ws is changed ...
+		//1: check if the active ws is changed ...
 		struct WorkingSetElement* it;
 		int exist = 0;
 		LIST_FOREACH(it , &faulted_env->ActiveList){
@@ -408,6 +419,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				exist = 1;
 			}
 		}
+
 
 		if(!exist){
 			int act_size = LIST_SIZE(&faulted_env->ActiveList);
@@ -428,16 +440,11 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		}
 		struct PageRefElement *ref_elm = (struct PageRefElement* )kmalloc(sizeof(struct PageRefElement));
-		if(ref_elm == NULL) panic("out of memory while allocating");
 		ref_elm->virtual_address = fault_va;
 		LIST_INSERT_TAIL(&faulted_env->referenceStreamList, ref_elm);
-		cprintf("========= REF List =======\n");
-		LIST_FOREACH(ref_elm,&faulted_env->referenceStreamList){
-				cprintf("va: %x\n",ref_elm->virtual_address);
-			}
-		cprintf("\n====================\n");
-*/
 
+
+		/*
 		struct WorkingSetElement *IT = NULL;
 
 		IT = NULL;
@@ -462,6 +469,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		}
 		 //env_page_ws_print(faulted_env);
+*/
 	}
 	else
 	{
