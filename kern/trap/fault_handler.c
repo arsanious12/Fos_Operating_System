@@ -270,66 +270,99 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
  *
  * 	IMPORTANT: This function SHOULD NOT change any of the given lists
  */
-struct WorkingSetElement* FindVic(struct PageRef_List *pageReferences,struct WS_List *initWorkingSet,struct PageRefElement *it){
-	struct WS_List tmp;
-	LIST_INIT(&tmp);
-	struct WorkingSetElement *elem = NULL;
-	LIST_FOREACH(elem,initWorkingSet){
-		LIST_INSERT_TAIL(&tmp,elem);
-	}
-	while (1==1){
-		int flag = 0;
-		uint32 va = it->virtual_address;
-		elem =NULL;
-		LIST_FOREACH(elem,initWorkingSet){
-			if(va == (uint32)elem->virtual_address){
-				LIST_REMOVE(&tmp,elem);
-				break;
-			}
-		}
-		if(LIST_SIZE(&tmp)==1 || LIST_NEXT(it) == NULL){
-			return LIST_FIRST(&tmp);
-		}
-		it = LIST_NEXT(it);
-	}
-	return NULL;
-
-}
-int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct PageRef_List *pageReferences)
+struct WorkingSetElement* FindVic(struct PageRef_List *pageReferences,struct WS_List *initWorkingSet,struct PageRefElement *it)
 {
-	//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #2 get_optimal_num_faults
-	//Your code is here
-	//Comment the following line
-	//panic("get_optimal_num_faults() is not implemented yet...!!");
-	struct PageRefElement *it = NULL;
-	int cnt = 0;                              // 1 2 3 4 5 6 7 8 9 10
-	LIST_FOREACH(it,pageReferences){
-		struct WorkingSetElement *elem=NULL;
-		uint32 va = it->virtual_address;
-		int flag = 0;
-		LIST_FOREACH(elem,initWorkingSet){
-			if(va == (uint32)elem->virtual_address){
-				flag = 1;
-			}
-		}
-		if(flag==0){
-			if(LIST_SIZE(initWorkingSet)==maxWSSize){
-				struct WorkingSetElement *vic = FindVic(pageReferences,initWorkingSet,it);
-				LIST_INSERT_BEFORE(initWorkingSet,vic,(struct WorkingSetElement *)va);
-				LIST_REMOVE(initWorkingSet,vic);
-				cprintf("warm\n");
-			}
-			else{
-				cprintf("cold\n");
-				LIST_INSERT_TAIL(initWorkingSet,(struct WorkingSetElement *)va);
-			}
-			cnt++;
-		}
-	}
-	cprintf("cnt: %d\n",cnt);
-	return cnt;
+    struct WS_List tmp;
+    LIST_INIT(&tmp);
 
+    // Copy working set elements into tmp (deep copy nodes)
+    struct WorkingSetElement *elem = NULL;
+    LIST_FOREACH(elem, initWorkingSet)
+    {
+        struct WorkingSetElement *copy =
+            (struct WorkingSetElement *) kmalloc(sizeof(struct WorkingSetElement));
+        copy->virtual_address = elem->virtual_address;
+        LIST_INSERT_TAIL(&tmp, copy);
+    }
+
+    // Scan future references
+    while (1==1)
+    {
+        uint32 va = it->virtual_address;
+
+        struct WorkingSetElement *e = NULL;
+        LIST_FOREACH(e, &tmp)
+        {
+            if (e->virtual_address == va)
+            {
+                LIST_REMOVE(&tmp, e);
+                kfree(e);
+                break;
+            }
+        }
+
+        if (LIST_SIZE(&tmp) == 1 || LIST_NEXT(it) == NULL)
+        {
+            return LIST_FIRST(&tmp);
+        }
+
+        it = LIST_NEXT(it);
+    }
+
+    return NULL;
 }
+
+int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize,struct PageRef_List *pageReferences)
+{
+    struct PageRefElement *it = NULL;
+    int cnt = 0;
+
+    LIST_FOREACH(it, pageReferences)
+    {
+        uint32 va = it->virtual_address;
+        int hit = 0;
+
+        // Check hit
+        struct WorkingSetElement *elem = NULL;
+        LIST_FOREACH(elem, initWorkingSet)
+        {
+            if (va == (uint32)elem->virtual_address)
+            {
+                hit = 1;
+                break;
+            }
+        }
+
+        if (!hit)
+        {
+            // Create new WS node
+            struct WorkingSetElement *kapshFda =(struct WorkingSetElement *)kmalloc(sizeof(struct WorkingSetElement));
+            kapshFda->virtual_address = va;
+
+            if (LIST_SIZE(initWorkingSet) == maxWSSize)
+            {
+                //cprintf("warm\n");
+                struct WorkingSetElement *vic =FindVic(pageReferences, initWorkingSet, it);
+                if (vic == NULL){
+                    vic = LIST_FIRST(initWorkingSet);
+                }
+
+                LIST_INSERT_BEFORE(initWorkingSet, vic, kapshFda);
+                LIST_REMOVE(initWorkingSet, vic);
+            }
+            else
+            {
+                //cprintf("cold\n");
+                LIST_INSERT_TAIL(initWorkingSet, kapshFda);
+            }
+
+            cnt++;
+        }
+    }
+    cprintf("cnt: %d\n",cnt);
+    return cnt;
+}
+
 
 void ClearActive(struct Env * faulted_env){
 	while(LIST_SIZE(&faulted_env->ActiveList) > 0){
@@ -360,15 +393,7 @@ void AddToRef(struct Env * faulted_env, uint32 fault_va){
 	}
 	ele->virtual_address = fault_va;
 	LIST_INSERT_TAIL(&faulted_env->referenceStreamList , ele);
-	LIST_FOREACH(ele,&faulted_env->referenceStreamList){
-		cprintf("va: %x\n",ele->virtual_address);
-	}
-	//struct FrameInfo fr=NULL;
-	//allocate_frame(&fr);
-	//pt_set_page_permissions(faulted_env->env_page_directory,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER,0);
-	//map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
-	//pt_set_page_permissions(faulted_env->env_page_directory,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER,0);
-	//pt_set_page_permissions(faulted_env->env_page_directory , fault_va , PERM_PRESENT , 0);
+
 #else
 	panic("not handled when KERN HEAP is disabled");
 #endif
@@ -396,27 +421,40 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		//cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
 		//cprintf("%d",faulted_env->page_WS_max_size);
-
-		/*if(LIST_SIZE(&faulted_env->referenceStreamList) == 0){
-			struct WorkingSetElement* it;
+//		cprintf("////////////////////st////////////////////////////////\n");
+//		env_page_ws_print(faulted_env);
+		if(LIST_SIZE(&faulted_env->referenceStreamList) == 0){
+			struct WorkingSetElement* it = NULL;
 			LIST_FOREACH(it, &(faulted_env->page_WS_list)){
-				if(it == NULL) break;
-				LIST_INSERT_TAIL(&faulted_env->ActiveList, it);
+				//if(it == NULL) break;
+				struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
+				newElem->virtual_address = it->virtual_address;
+				LIST_INSERT_TAIL(&faulted_env->ActiveList, newElem);
 			}
-		}*/
+		}
 
-		/*fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+		fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 		uint32* pg_table = NULL;
 		struct FrameInfo* ptr_fr = get_frame_info(faulted_env->env_page_directory, fault_va, &pg_table);
 
 
 		if(!ptr_fr){
-			pf_read_env_page(faulted_env, (void*)fault_va);
-			struct FrameInfo *fr=NULL;
-			allocate_frame(&fr);
-			map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
-			//get_page_table(faulted_env->env_page_directory, fault_va, &pg_table);
-		}else{
+			struct FrameInfo *NewFrame=NULL;
+			allocate_frame(&NewFrame);
+			map_frame(faulted_env->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_USER);
+			int res = pf_read_env_page(faulted_env,(uint32*)fault_va);
+			if(res == E_PAGE_NOT_EXIST_IN_PF){
+				if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
+					int o;
+				}
+				else{
+					unmap_frame(faulted_env->env_page_directory, fault_va);
+					env_exit();
+				}
+			}
+
+		}
+		else{
 			pt_set_page_permissions(faulted_env->env_page_directory,fault_va,PERM_PRESENT,0);
 		}
 
@@ -436,33 +474,34 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				// reset present in all items in the list
 				while(LIST_SIZE(&faulted_env->ActiveList) > 0){
 					struct WorkingSetElement *p_it = LIST_FIRST(&faulted_env->ActiveList);
-					LIST_REMOVE(&faulted_env->ActiveList , p_it);
+					//cprintf("delete: %x\n",p_it->virtual_address);
 					pt_set_page_permissions(faulted_env->env_page_directory,p_it->virtual_address,0,PERM_PRESENT);
+					LIST_REMOVE(&faulted_env->ActiveList , p_it);
 				}
+				//cprintf("size: %x\n",LIST_SIZE(&faulted_env->ActiveList));
 
 			}
 			struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
 			LIST_INSERT_TAIL(&(faulted_env->ActiveList),newElem);
-			struct FrameInfo *fr=NULL;
-			allocate_frame(&fr);
-			map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
 
 		}
-		struct PageRefElement *ref_elm = (struct PageRefElement* )kmalloc(sizeof(struct PageRefElement));
-		ref_elm->virtual_address = fault_va;
-		LIST_INSERT_TAIL(&faulted_env->referenceStreamList, ref_elm);
-*/
+		AddToRef(faulted_env,fault_va);
 
-		fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
-//		if(LIST_EMPTY(&faulted_env->referenceStreamList) == 1){
-//			struct WorkingSetElement* it =NULL;
-//			LIST_FOREACH(it, &(faulted_env->page_WS_list)){
-//				//AddToActive(faulted_env,it->virtual_address);
-//				//pt_set_page_permissions(faulted_env->env_page_directory,it->virtual_address,PERM_PRESENT,0);
-//				LIST_INSERT_TAIL(&faulted_env->ActiveList, it);
-//				//AddToRef(faulted_env,fault_va);
-//			}
-//		}
+
+
+		/*struct PageRefElement *ref_elm = (struct PageRefElement* )kmalloc(sizeof(struct PageRefElement));
+		ref_elm->virtual_address = fault_va;
+		LIST_INSERT_TAIL(&faulted_env->referenceStreamList, ref_elm);*/
+
+
+
+	/*	fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+		if(LIST_SIZE(&faulted_env->referenceStreamList) == 0){
+			struct WorkingSetElement* it =NULL;
+			LIST_FOREACH(it, &(faulted_env->page_WS_list)){
+				LIST_INSERT_TAIL(&faulted_env->ActiveList, it);
+			}
+		}
 		struct WorkingSetElement *IT = NULL;
 
 		bool flag=0;
@@ -481,11 +520,11 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				ClearActive(faulted_env);
 				//fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 			}
-			AddToRef(faulted_env,fault_va);
 			AddToActive(faulted_env,fault_va);
 
 		}
-		 //env_page_ws_print(faulted_env);
+		AddToRef(faulted_env,fault_va);
+		 //env_page_ws_print(faulted_env);*/
 
 	}
 	else
@@ -494,7 +533,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
 		if(wsSize < (faulted_env->page_WS_max_size))
 		{
-			//cprintf("//////////////Before pl////////////////");
+			cprintf("//////////////Before pl////////////////");
 			//env_page_ws_print(faulted_env);
 			//env_page_ws_print(faulted_env);
 			fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
