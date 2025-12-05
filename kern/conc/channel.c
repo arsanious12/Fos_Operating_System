@@ -31,10 +31,10 @@ void sleep(struct Channel *chan, struct kspinlock* lk)
 	acquire_kspinlock(&ProcessQueues.qlock); //take care
 	struct Env *e = get_cpu_proc();
 	enqueue(&(chan->queue),e); //put
-	release_kspinlock(lk); //fk w nam
+	release_kspinlock(lk); //fook w nam
 	e->env_status = ENV_BLOCKED;
 	sched();
-	acquire_kspinlock(lk); //aft7 w 3d
+	acquire_kspinlock(lk); //eft7 w 3dy
 	release_kspinlock(&ProcessQueues.qlock);
 
 }

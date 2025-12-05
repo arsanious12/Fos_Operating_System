@@ -27,10 +27,11 @@ void init_sleeplock(struct sleeplock *lk, char *name)
 void acquire_sleeplock(struct sleeplock *lk)
 {
 	acquire_kspinlock(&(lk->lk));
-	while(lk->locked==1*1){
+	//szsz
+	while(lk->locked==1){
 		sleep(&(lk->chan),&(lk->lk));  //zleeeep
 	}
-	lk->locked = 1*1;
+	lk->locked = 1;
 	release_kspinlock(&(lk->lk));
 	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #4 SLEEP LOCK - acquire_sleeplock
 	//Your code is here
@@ -42,11 +43,13 @@ void release_sleeplock(struct sleeplock *lk)
 {
 
 	acquire_kspinlock(&(lk->lk));
-	if(lk->chan.queue.size > 0*1){
+	// 2fl_2fl
+	if(lk->chan.queue.size > 0){
 		wakeup_all(&(lk->chan));   // meen  yl72
 	}
-	lk->locked=0*1;
+	lk->locked=0;
 	release_kspinlock(&(lk->lk));
+	// 7aram
 
 	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #5 SLEEP LOCK - release_sleeplock
 	//Your code is here

@@ -24,7 +24,7 @@ void wait_ksemaphore(struct ksemaphore *ksem)
 {
 	acquire_kspinlock(&ksem->lk); //22fl
 	ksem->count--; //minaz
-	if(ksem->count < 0*1){
+	if(ksem->count < 0){
 		sleep(&ksem->chan,&ksem->lk); //zleep
 	}
 	release_kspinlock(&ksem->lk); //aft7
@@ -39,7 +39,7 @@ void signal_ksemaphore(struct ksemaphore *ksem)
 {
 	acquire_kspinlock(&ksem->lk);
 	ksem->count++; //pluz
-	if(ksem->count <=0*1){
+	if(ksem->count <=0){
 		wakeup_one(&ksem->chan); //a7na hnam
 	}
 	release_kspinlock(&ksem->lk);

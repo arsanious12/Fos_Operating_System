@@ -165,21 +165,21 @@ void fault_handler(struct Trapframe *tf)
 		if (userTrap)
 		{
 			//cprintf("userTrap1\n");
+			bool ArZa = 0;
 			int perm = pt_get_page_permissions(faulted_env->env_page_directory, fault_va);
-			if (fault_va >= USER_LIMIT)
+			if (fault_va >= USER_LIMIT || ((perm & PERM_PRESENT) && (perm & ~PERM_WRITEABLE)))
 			{
 				//cprintf("cancelloo1\n");
-				env_exit();
+				ArZa = 1;
 			}
 			else if (fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX)
 			{
 				if (!(perm & PERM_UHPAGE)){
 					//cprintf("cancelloo2\n");
-					env_exit();}
+					ArZa = 1;
+				}
 			}
-			else if ((perm & PERM_PRESENT) && (perm & ~PERM_WRITEABLE))
-			{
-				//cprintf("cancelloo3\n");
+			if(ArZa){
 				env_exit();
 			}
 
@@ -272,86 +272,79 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
  */
 struct WorkingSetElement* FindVic(struct PageRef_List *pageReferences, struct WS_List *ws, struct PageRefElement *current)
 {
-    struct WorkingSetElement *victim = NULL;
-    int farthest_use = -1;
+    struct WorkingSetElement *vic = NULL;
+    int far = -1;
 
-    // Iterate over elements in the current working set
     struct WorkingSetElement *elem = NULL;
     LIST_FOREACH(elem, ws)
     {
-        int distance = 0;
-        struct PageRefElement *future = LIST_NEXT(current);
+        int dist = 0;
+        struct PageRefElement *fu = LIST_NEXT(current);
 
-        // Scan future references
-        while (future != NULL)
+        while (fu != NULL)
         {
-            distance++;
-            if (future->virtual_address == elem->virtual_address)
+            dist++;
+            if (fu->virtual_address == elem->virtual_address)
                 break;
-            future = LIST_NEXT(future);
+            fu = LIST_NEXT(fu);
         }
 
-        // If element is not found in the future, return it immediately
-        if (future == NULL)
+        if (fu == NULL)
             return elem;
 
-        // Otherwise, choose the one used farthest in the future
-        if (distance > farthest_use)
+        if (dist > far)
         {
-            farthest_use = distance;
-            victim = elem;
+            far = dist;
+            vic = elem;
         }
     }
 
-    // If all elements are found in the future, return the farthest one
-    return victim;
+    return vic;
 }
 
 int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct PageRef_List *pageReferences)
 {
-    int fault_count = 0;
+    int cnnt = 0;
     struct WS_List ws;
     LIST_INIT(&ws);
 
-    // Copy initial working set into our local WS
     struct WorkingSetElement *it = NULL;
     LIST_FOREACH(it, initWorkingSet)
     {
-        struct WorkingSetElement *copy = kmalloc(sizeof(struct WorkingSetElement));
-        copy->virtual_address = it->virtual_address;
-        LIST_INSERT_TAIL(&ws, copy);
+        struct WorkingSetElement *co = kmalloc(sizeof(struct WorkingSetElement));
+        co->virtual_address = it->virtual_address;
+        LIST_INSERT_TAIL(&ws, co);
     }
+
 
     struct PageRefElement *ref = NULL;
     LIST_FOREACH(ref, pageReferences)
     {
-        // Check if page is already in working set
-        int hit = 0;
+    	// flaggg
+        int f = 0;
         struct WorkingSetElement *elem = NULL;
         LIST_FOREACH(elem, &ws)
         {
             if (elem->virtual_address == ref->virtual_address)
             {
-                hit = 1;
+                f = 1;
                 break;
             }
         }
 
-        if (!hit)
+        if (!f)
         {
-            // Page fault
-            fault_count++;
+            //zawd
+            cnnt++;
 
             struct WorkingSetElement *new_elem = kmalloc(sizeof(struct WorkingSetElement));
             new_elem->virtual_address = ref->virtual_address;
 
             if (LIST_SIZE(&ws) == maxWSSize)
             {
-                // Choose victim using OPT
                 struct WorkingSetElement *victim = FindVic(pageReferences, &ws, ref);
                 if (victim == NULL)
                 {
-                    // fallback
                     victim = LIST_FIRST(&ws);
                 }
                 LIST_REMOVE(&ws, victim);
@@ -362,7 +355,7 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct
         }
     }
 
-    // Free remaining elements in WS
+    // sheel
     struct WorkingSetElement *tmp = NULL;
     while (!LIST_EMPTY(&ws))
     {
@@ -371,7 +364,7 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct
         kfree(tmp);
     }
 
-    return fault_count;
+    return cnnt;
 }
 
 
@@ -422,16 +415,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//Your code is here
 		//Comment the following line
 		//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
-
-		// [1]: keep track active WS
-		// [2]: if faulted page not in memory, read it from disk
-		//      else, just set its Present bit
-		// [3]: if the faulted page in the active WS, do nothing
-		//      else, if Active WS is full, reset present & delete all its pages
-		// [4]: Add the faulted page to the Active WS
-		// [5]: Add faulted page to the end of the ref3erence stream list
-
-		//cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
+        //cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
 		//cprintf("%d",faulted_env->page_WS_max_size);
 //		cprintf("////////////////////st////////////////////////////////\n");
 //		env_page_ws_print(faulted_env);
@@ -555,18 +539,31 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			map_frame(faulted_env->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER|PERM_USED);
 			int res = pf_read_env_page(faulted_env,(uint32*)fault_va);
 			//cprintf("Ah\n");
-			int to_be_placed = 0;
 			if(res == E_PAGE_NOT_EXIST_IN_PF){
 				//cprintf("Ah2\n");
 				if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
 					//cprintf("Ah3\n");
-					to_be_placed = 1;
+					struct WorkingSetElement* nlm = env_page_ws_list_create_element(faulted_env,fault_va);
+					if(faulted_env->page_last_WS_element == NULL || faulted_env->page_last_WS_element == LIST_FIRST(&faulted_env->page_WS_list)){
+						LIST_INSERT_TAIL(&(faulted_env->page_WS_list),nlm);
+					}
+					else{
+						LIST_INSERT_BEFORE(&(faulted_env->page_WS_list),faulted_env->page_last_WS_element,nlm);
+						//faulted_env->page_last_WS_element = LIST_NEXT(faulted_env->page_last_WS_element);
+					}
+					uint32 curSize = LIST_SIZE(&faulted_env->page_WS_list);
+					if (curSize == faulted_env->page_WS_max_size && faulted_env->page_last_WS_element == NULL){
+
+						faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
+					}
 
 				}
-			}else{
-				to_be_placed = 1;
+				else{
+					unmap_frame(faulted_env->env_page_directory, fault_va);
+					env_exit();
+				}
 			}
-			if(to_be_placed){
+			else{
 				struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
 				if(faulted_env->page_last_WS_element == NULL || faulted_env->page_last_WS_element == LIST_FIRST(&faulted_env->page_WS_list)){
 					LIST_INSERT_TAIL(&(faulted_env->page_WS_list),newElem);
@@ -576,15 +573,12 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 					//faulted_env->page_last_WS_element = LIST_NEXT(faulted_env->page_last_WS_element);
 				}
 				uint32 curSize = LIST_SIZE(&faulted_env->page_WS_list);
-				if (curSize == faulted_env->page_WS_max_size && faulted_env->page_last_WS_element == NULL){
+				if(curSize == faulted_env->page_WS_max_size && faulted_env->page_last_WS_element == NULL){
 					faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
 				}
-
-			}else{
-				unmap_frame(faulted_env->env_page_directory, fault_va);
-
-				env_exit();
 			}
+
+
 			//env_page_ws_print(faulted_env);
 			//TODO: [PROJECT'25.GM#3] FAULT HANDLER I - #3 placement
 			//Your code is here
