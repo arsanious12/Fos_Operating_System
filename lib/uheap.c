@@ -11,9 +11,9 @@ int __firstTimeFlag = 1;
 
 struct uheap_page{
 
-	int marked;
-	uint32 va;
-	uint32 size;
+	int mkd;
+	uint32 vrrdd;
+	uint32 sz;
 };
 struct uheap_page uheap_pages[NUM_OF_UHEAP_PAGES];
 //bool uheap[1024*1024];
@@ -28,10 +28,11 @@ void uheap_init()
 		uheapPageAllocBreak = uheapPageAllocStart;
 		__firstTimeFlag = 0;
 		//for (int i = 0; i < 1024*1024; ++i) uheap[i] = 0;
+		//b3rf el struct &arr
 		for(uint32 i=0;i<NUM_OF_UHEAP_PAGES;i++){
-			uheap_pages[i].marked = 0;
-			uheap_pages[i].size = 0;
-			uheap_pages[i].va = 0;
+			uheap_pages[i].mkd= 0;
+			uheap_pages[i].sz= 0;
+			uheap_pages[i].vrrdd= 0;
 		}
 
 
@@ -67,15 +68,15 @@ void return_page(void* va)
 // [1] ALLOCATE SPACE IN USER HEAP:
 //=================================
 
-
+////bdl kol shwya aktb
 void mark_uheap(uint32 startva,uint32 end,uint32 size,int flag){
-	uint32 k;
-	for (k = startva; k < end + flag * PAGE_SIZE; k += PAGE_SIZE) {
+	uint32 messi;
+	for (messi=startva;messi<end+flag*PAGE_SIZE;messi+=PAGE_SIZE) {
 
 		 //uheap[(k - uheapPageAllocStart) / PAGE_SIZE] = 1;
-		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].marked = 1;
-		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].size = size;
-		 uheap_pages[(k - uheapPageAllocStart) / PAGE_SIZE].va = startva;
+		 uheap_pages[(messi-uheapPageAllocStart)/PAGE_SIZE].mkd=1;
+		 uheap_pages[(messi-uheapPageAllocStart)/PAGE_SIZE].sz=size;
+		 uheap_pages[(messi-uheapPageAllocStart)/PAGE_SIZE].vrrdd=startva;
 
 	}
 	sys_allocate_user_mem(startva,ROUNDUP(size,PAGE_SIZE));
@@ -97,80 +98,77 @@ void* malloc(uint32 size)
 		uint32 vra=(uint32)alloc_block(size);
 		return (uint32 *)vra;
 	}
-	/////////////////////////////page///////////////////////////////////////////////
+
 
 	else{
-		///////////////////////////////////exact///////////////////////////////////
+		///////////////////////////////////exacttttttttttttttttt///////////////////////////////////
 
-	int flag =0;
-	uint32 startva = uheapPageAllocStart;
-	int j =0;
-	int FoundExactFit = 0;
-	int FoundworstFit = 0;
-	uint32 SumOfSizes = 0;
+	int flag=0;
+	uint32 startva=uheapPageAllocStart;
+	int j=0;
+	int doctor=0;//efit
+	int mohndes=0;//wfit
+	uint32 totals=0;
 
-	for (uint32 i = uheapPageAllocStart; i < uheapPageAllocBreak && j < NUM_OF_UHEAP_PAGES; i += PAGE_SIZE, j++){
-		if (uheap_pages[j].marked !=1) {
 
-			SumOfSizes += PAGE_SIZE;
-			if (flag !=1) {
-				startva = i;
-				flag = 1;
+	for (uint32 i=uheapPageAllocStart;i<uheapPageAllocBreak&&j<NUM_OF_UHEAP_PAGES;i+=PAGE_SIZE,j++){
+		if (uheap_pages[j].mkd!=1) {
+			totals+=PAGE_SIZE;
+			if (flag!=1) {
+				startva=i;
+				flag=1;
 			}
-		if (SumOfSizes == ROUNDUP(size,PAGE_SIZE) && (j + 1 < NUM_OF_UHEAP_PAGES && uheap_pages[j + 1].marked == 1)) {
-
+		if (totals==ROUNDUP(size,PAGE_SIZE)&& (j +1<NUM_OF_UHEAP_PAGES&& uheap_pages[j +1].mkd==1)) {
 			mark_uheap(startva,i,size,1);
+			//cprintf("%d\n",totals);
 			return (uint32*)startva;
-
-
-
 			}
 		}
 		else {
-			flag = 0;
-			SumOfSizes = 0;
+			flag=0;
+			totals=0;
 		}
 
 	}
-	//////////////////////////////////////////worst///////////////////////////////////
-uint32 maxsize = 0;
-uint32 StartOfMaxVa;
+	//////////////////////////////////////////worsttttttttttttttt///////////////////////////////////
+uint32 m_s_w_f=0;
+uint32 Start_m_s_w_f_Va;
 		j = 0;
 
-		SumOfSizes = 0;
-		flag = 0;
-	for (uint32 i = uheapPageAllocStart; i < uheapPageAllocBreak && j < NUM_OF_UHEAP_PAGES; i += PAGE_SIZE, j++) {
+		totals=0;
+		flag=0;
+	for (uint32 i=uheapPageAllocStart; i<uheapPageAllocBreak&&j<NUM_OF_UHEAP_PAGES;i+=PAGE_SIZE,j++) {
 
-		if (!uheap_pages[j].marked) {
-			SumOfSizes += PAGE_SIZE;
-			if (maxsize < SumOfSizes) {
-				maxsize = SumOfSizes;
-				StartOfMaxVa = startva;
+		if (!uheap_pages[j].mkd) {
+			totals += PAGE_SIZE;
+			if (m_s_w_f<totals) {
+				m_s_w_f=totals;
+				Start_m_s_w_f_Va=startva;
 			}
-		 if (flag !=1) {
-			startva = i;
-				flag = 1;
+		 if (flag!=1) {
+			startva=i;
+				flag=1;
 				}
 			}
 			else {
-				flag = 0;
-				SumOfSizes = 0;
+				flag=0;
+				totals=0;
 			}
 
 		}
-		if (maxsize > size) {
-			mark_uheap(StartOfMaxVa,StartOfMaxVa+ROUNDUP(size,PAGE_SIZE),size,0);
-			return (uint32*)StartOfMaxVa;
+		if (m_s_w_f >size) {
+			mark_uheap(Start_m_s_w_f_Va,Start_m_s_w_f_Va+ROUNDUP(size,PAGE_SIZE),size,0);
+			//cprintf("%d\n",Start_m_s_w_f_Va);
+			return (uint32*)Start_m_s_w_f_Va;
 
 		}
-		/////////////////////////////////////////Extend/////////////////////////////////
-		if(ROUNDUP(size,PAGE_SIZE) <= (USER_HEAP_MAX-uheapPageAllocBreak)){
-			//cprintf("cancelooooooooooooooooo \n");
-
+		/////////////////////////////////////////move break/////////////////////////////////
+		if(ROUNDUP(size,PAGE_SIZE)<=(USER_HEAP_MAX-uheapPageAllocBreak)){
+			//cprintf("cancelooooooooo \n");
 			startva = uheapPageAllocBreak;
-			uheapPageAllocBreak +=ROUNDUP(size,PAGE_SIZE);
+			uheapPageAllocBreak+=ROUNDUP(size,PAGE_SIZE);
 			mark_uheap(startva,uheapPageAllocBreak,size,1);
-			return (uint32*)startva;
+			return(uint32*)startva;
 
 		}
 	}
@@ -192,8 +190,8 @@ void free(void* virtual_address)
 	uint32 vra = (uint32) virtual_address;
 	uint32 size = 0;
 	int ct=0;
-		if(vra >= dynAllocStart && vra < dynAllocEnd){
-			struct PageInfoElement* elm = to_page_info(vra);
+	uint32 rm_addr=0;
+		if(vra>=dynAllocStart&&vra<dynAllocEnd){
 			free_block(virtual_address);
 			return;
 		}
@@ -201,35 +199,38 @@ void free(void* virtual_address)
 		panic("invalid address");
 	}
 	else{
-		size=uheap_pages[(vra - uheapPageAllocStart)/PAGE_SIZE].size;
-		if(size % PAGE_SIZE !=0){
-				ct = (size/PAGE_SIZE) + 1;
+		size=uheap_pages[(vra-uheapPageAllocStart)/PAGE_SIZE].sz;
+		if(size%PAGE_SIZE!=0){
+				ct=(size/PAGE_SIZE)+1;
 			}
 			else {
-				ct = (size/PAGE_SIZE);
+				ct=(size/PAGE_SIZE);
 			}
 	for(uint32 i=vra;i < vra + ct*PAGE_SIZE;i += PAGE_SIZE){
-		size=uheap_pages[(vra - uheapPageAllocStart)/PAGE_SIZE].size;
-		sys_free_user_mem(i,size);
-
+		size=uheap_pages[(vra - uheapPageAllocStart)/PAGE_SIZE].sz;
+		rm_addr=i;
+		sys_free_user_mem(rm_addr,size);
 
 		//uheap[(i - uheapPageAllocStart)/PAGE_SIZE] = 0;
 
-		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].marked=0;
-		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].va=0;
-		uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].size=0;
+		uheap_pages[(rm_addr-uheapPageAllocStart)/PAGE_SIZE].mkd=0;
+		uheap_pages[(rm_addr-uheapPageAllocStart)/PAGE_SIZE].vrrdd=0;
+		uheap_pages[(rm_addr-uheapPageAllocStart)/PAGE_SIZE].sz=0;
+
 
 		}
-	uint32 NextPageVa = vra + (ct)*PAGE_SIZE;
-		if(NextPageVa == uheapPageAllocBreak){
-		for(uint32 i = uheapPageAllocBreak-PAGE_SIZE; i>= uheapPageAllocStart;i -=PAGE_SIZE){
-			if(uheap_pages[(i - uheapPageAllocStart)/PAGE_SIZE].marked){
-				uheapPageAllocBreak = i + PAGE_SIZE;
+
+	uint32 nep=vra+(ct)*PAGE_SIZE;
+	/////////////////hrag3 el break///////////////////////////////
+		if(nep==uheapPageAllocBreak){
+		for(uint32 i=uheapPageAllocBreak-PAGE_SIZE; i>=uheapPageAllocStart;i-=PAGE_SIZE){
+			if(uheap_pages[(i-uheapPageAllocStart)/PAGE_SIZE].mkd){
+				uheapPageAllocBreak=i +PAGE_SIZE;
 				break;
 			}
 		}
-			if(NextPageVa == uheapPageAllocBreak){
-			uheapPageAllocBreak = uheapPageAllocStart;
+			if(nep==uheapPageAllocBreak){
+			uheapPageAllocBreak=uheapPageAllocStart;
 			}
 	}
 
@@ -237,7 +238,7 @@ void free(void* virtual_address)
 }
 
 int is_allocated(uint32 va){
-	return uheap_pages[(va - uheapPageAllocStart) >> 12].marked;
+	return uheap_pages[(va - uheapPageAllocStart) >> 12].mkd;
 }
 
 //int entrance_count = 0;
