@@ -409,6 +409,7 @@ void clock_interrupt_handler(struct Trapframe* tf)
 //===================================================================
 void update_WS_time_stamps()
 {
+#if USE_KHEAP
     cprintf("in time stamp\n");
     //cprintf("%d\n",0>>1);
     struct Env* e = get_cpu_proc();
@@ -442,7 +443,9 @@ void update_WS_time_stamps()
 
 
 }
-
+#else
+	panic("not kheap");
+#endif
         //env_page_ws_print(e);
 
 
