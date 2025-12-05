@@ -108,36 +108,36 @@ struct Share* alloc_share(int32 ownerID, char* shareName, uint32 size, uint8 isW
 	//Your code is here
 	//Comment the following line
 #if USE_KHEAP
-	struct Share* ptr_shared_object = (struct Share*)kmalloc(sizeof(struct Share));
-
-	if(ptr_shared_object == NULL){
+	// n7gz mkan shr object fe el bl kmalloc
+	struct Share* pshr=(struct Share*)kmalloc(sizeof(struct Share));
+	if(pshr==NULL) {
 		return NULL;
 	}
-
-	ptr_shared_object->ID = (uint32)ptr_shared_object & ~(0x80000000);
-	ptr_shared_object->ownerID = ownerID;
-	int l = strlen(shareName);
-	for (int i = 0; i < l; ++i){
-			ptr_shared_object->name[i] = shareName[i];
+	// assign datat bta3t elobj..
+	pshr->ID= (uint32)pshr& ~(0x80000000);
+	pshr->ownerID= ownerID;
+	int l =strlen(shareName);
+	for (int i =0; i<l;++i) {
+			pshr->name[i]=shareName[i];
 	}
-	ptr_shared_object->name[l] = '\0';
-	ptr_shared_object->size = size;
-	ptr_shared_object->isWritable = isWritable;
-	ptr_shared_object->references = 1;
+	pshr->name[l]='\0';
+	pshr->size =size;
+	pshr->isWritable =isWritable;
+	pshr->references =1;
 
-	int framesCount = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
-
-	ptr_shared_object->framesStorage = (struct FrameInfo**) kmalloc(framesCount * sizeof(struct FrameInfo *));
-
-	if(ptr_shared_object->framesStorage == NULL) {
-		kfree(ptr_shared_object);
+	// n7gz bel kmalloc el frames ely ha7tgha.
+	int frC =ROUNDUP(size,PAGE_SIZE) /PAGE_SIZE;
+	 pshr->framesStorage =(struct FrameInfo**)kmalloc(frC*sizeof(struct FrameInfo*));
+	 // lw el framat msh mlhash value free el obj..
+	if(pshr->framesStorage==NULL) {
+		kfree(pshr);
 		return NULL;
 	}
-
-	for (int i= 0; i< framesCount; ++i){
-		ptr_shared_object->framesStorage[i] = 0;
+	//reset el frams
+	for (int i= 0; i<frC; ++i){
+		pshr->framesStorage[i] =0;
 	}
-	return ptr_shared_object;
+	return pshr;
 	//panic("alloc_share() is not implemented yet...!!");
 
 #else
@@ -169,55 +169,51 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//Your code is here
 	//Comment the following line
 	//panic("create_shared_object() is not implemented yet...!!");
-	acquire_kspinlock(&AllShares.shareslock);
 	struct Env* myenv = get_cpu_proc();
 
 	//cprintf("\n\n before allocating: ");
 	//print_allshare();
 
-	// check if exist
-	struct Share* ptr = find_share(ownerID, shareName);
-	if(ptr != NULL) {
+	acquire_kspinlock(&AllShares.shareslock);
+	//lw mawgoda already hna5odha..
+	struct Share* cPshr=find_share(ownerID, shareName);
+	if(cPshr !=NULL) {
 		//cprintf("no creating new object already exist\n");
 		release_kspinlock(&AllShares.shareslock);
 		return E_SHARED_MEM_EXISTS;
 	}
 
-	// get frames to be mapped
-	int framesCount = ROUNDUP(size, PAGE_SIZE) / PAGE_SIZE;
-	uint32 va = (uint32)virtual_address;
+	// n7gz bel kmalloc el frames ely ha7tgha.
+	int frC=ROUNDUP(size,PAGE_SIZE)/PAGE_SIZE;
+	uint32 va=(uint32)virtual_address;
 
-	// allocating the share object
-	struct Share* ptr_shared_object = alloc_share(ownerID, shareName, size, isWritable);
-	if(ptr_shared_object == NULL) {
+	// hallocate el shrd object .
+	struct Share* pshr = alloc_share(ownerID,shareName, size, isWritable);
+	if(pshr == NULL) {
 		release_kspinlock(&AllShares.shareslock);
 		return E_NO_SHARE;
 	}
 
-	//set permission to uhpage and if(iswritable)
+	//permsission bta3t el new created obj.
 	int perm = PERM_UHPAGE|PERM_USER|PERM_WRITEABLE;
 
-	// iterate over the frames and allocating pages from them
-	for (int i = 0; i < framesCount; ++i){
-		int ret = alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i, perm, 0);
-
-		uint32* ptr_pg_table = NULL;
-		get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
-
-		struct FrameInfo* cur_frame = get_frame_info(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
-		ptr_shared_object->framesStorage[i] = cur_frame;
+	// hniterat 3la el frames wn n7otha fe elmem
+	for (int i=0; i< frC;++i){
+		int ret=alloc_page(myenv->env_page_directory, va + PAGE_SIZE*i, perm, 0);
+		uint32* pgt=NULL;
+		get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i,&pgt);
+		struct FrameInfo* cur_frame=get_frame_info(myenv->env_page_directory, va+ PAGE_SIZE*i, &pgt);
+		pshr->framesStorage[i]=cur_frame;
 	}
 
-
 	//acquire_kspinlock(&AllShares.shareslock);
-	LIST_INSERT_TAIL(&AllShares.shares_list, ptr_shared_object);
+	LIST_INSERT_TAIL(&AllShares.shares_list,pshr);
 
 	release_kspinlock(&AllShares.shareslock);
 
 	//cprintf("\n\n after allocating: ");
 	//print_allshare();
-
-	return ptr_shared_object->ID;
+	return pshr->ID;
 	// This function should create the shared object at the given virtual address with the given size
 	// and return the ShareObjectID
 	// RETURN:
@@ -245,30 +241,33 @@ int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 	//cprintf("\ncurrent shared list: ");
 	//print_allshare();
 
-	struct Share* ptr_shared_object = find_share(ownerID, shareName);
-
-	if(ptr_shared_object == NULL){
+	/// hashof lw mawgood 3ndy
+	struct Share* pshr=find_share(ownerID, shareName);
+	if(pshr==NULL) {
 		return E_SHARED_MEM_NOT_EXISTS;
 	}
 
-	uint32 size = ROUNDUP(ptr_shared_object->size, PAGE_SIZE);
-	int framesCount = size / PAGE_SIZE;
-	uint32 va = (uint32)virtual_address;
+	uint32 size=ROUNDUP(pshr->size,PAGE_SIZE);
+	int frC =size/PAGE_SIZE;
+	uint32 va=(uint32)virtual_address;
 
-	int perm = PERM_UHPAGE|PERM_USER;
-	if(ptr_shared_object->isWritable) perm|=PERM_WRITEABLE;
+	// elpermission 3la 7asb
+	int perm =PERM_UHPAGE|PERM_USER;
+	if(pshr->isWritable) perm|=PERM_WRITEABLE;
 
-	for (int i = 0; i < framesCount; ++i){
-		uint32* ptr_pg_table = NULL;
-		int ret = get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptr_pg_table);
+	// hneterate 3la el frames wbshawer 3leha mn el object el tany..
+	for (int i=0; i<frC;++i){
+		uint32* ptb=NULL;
+		int ret=get_page_table(myenv->env_page_directory, va + PAGE_SIZE*i, &ptb);
 		if(ret == TABLE_NOT_EXIST){
-			ptr_pg_table = create_page_table(myenv->env_page_directory, va + PAGE_SIZE*i);
+			ptb = create_page_table(myenv->env_page_directory, va + PAGE_SIZE*i);
 		}
-		int r = map_frame(myenv->env_page_directory,ptr_shared_object->framesStorage[i],va + PAGE_SIZE*i,perm);
-		ptr_shared_object->framesStorage[i]->references++;
+		int r = map_frame(myenv->env_page_directory,pshr->framesStorage[i],va + PAGE_SIZE*i,perm);
+		pshr->framesStorage[i]->references++;
 	}
-	ptr_shared_object->references++;
-	return ptr_shared_object->ID;
+
+	pshr->references++;
+	return pshr->ID;
 	// 	This function should share the required object in the heap of the current environment
 	//	starting from the given virtual_address with the specified permissions of the object: read_only/writable
 	// 	and return the ShareObjectID

@@ -253,79 +253,74 @@ void* smalloc(char *sharedVarName, uint32 size, uint8 isWritable)
 	if (size == 0) return NULL ;
 	//=============================================================
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #2 smalloc
-	//Your code is here
-	uint32 start_address = uheapPageAllocStart;
-	uint32 end_address = uheapPageAllocBreak;
-	size = ROUNDUP(size, PAGE_SIZE);
+	// Your code is here
+	 uint32 srt=uheapPageAllocStart;
+	uint32 nd=uheapPageAllocBreak;
+	size=ROUNDUP(size, PAGE_SIZE);
 
 
     int r = sys_size_of_shared_object(sys_getenvid(), sharedVarName);
-	//cprintf("size: %d\n", r);
     if(r >= 1) return NULL;
+	//cprintf("size: %d\n", r);
 
-	//CASE 1: EXACT fit
-	uint32 res_address = 0;
-	for (uint32 i = start_address; i < end_address;){
+	///hansearch 3la ely adha bzabt..
+	uint32 re = 0;
+	for (uint32 i=srt; i<nd;){
 		if(!is_allocated(i)){
-			uint32 j = i;
-			uint32 gap_size = 0;
-			while(j < end_address && !is_allocated(j)){
-				j += PAGE_SIZE;
+			// el j htstrt mn i.> double pointer
+			uint32 j=i;
+			uint32 gp_span =0;//calc space bet j and i..
+			while(j < nd &&!is_allocated(j)) {//j bt3ady 3la el not alloc
+				j +=PAGE_SIZE;
 			}
-			gap_size = j - i;
-			if(gap_size == size){
-				res_address = i;
+			gp_span =j-i; // diff betw. 2 pointers.
+			if(gp_span ==size) { // if exact found..
+				re=i;
 				break;
 			}
-			i = j;
+			i =j; // jump over gap-> to j..
 		}else{
-			i += PAGE_SIZE;
+			i +=PAGE_SIZE;////lw i alloc zawd page_size.. iteerate..
 		}
 	}
-	if(res_address == 0){
-		// CASE 2: WORST FIT
-		uint32 max_size = 0;
-		for (uint32 i = start_address; i < end_address;){
-			if(!is_allocated(i)){
-				uint32 j = i;
-				uint32 gap_size = 0;
-				while(j < end_address && !is_allocated(j)){
-					j += PAGE_SIZE;
+	if(re==0) {
+		//lw ml'ash value y3mal
+		uint32 max_size=0;
+		for (uint32 i=srt;i <nd;){ // it mn startl 7d end
+			if(!is_allocated(i)){ // lw it not alloc
+				uint32 j =i;
+				uint32 gp_span =0;
+				while(j < nd &&!is_allocated(j)){//j bt3ady 3la el not alloc
+					j +=PAGE_SIZE;
 				}
-				gap_size = j - i;
-				if(gap_size >= size && gap_size > max_size){
-					res_address = i;
-					max_size = gap_size;
+				gp_span =j-i; ///diff betw.2 pointers.
+				if(gp_span>=size && gp_span > max_size){ // lw el msafa el fadya akber mn ely etsagelt..
+					re= i;
+					max_size =gp_span;
 				}
-				i = j;
-			}else{
-				i += PAGE_SIZE;
+				i =j;
+			} else {
+				i +=PAGE_SIZE;
 			}
 		}
 	}
 
-	if(res_address == 0){
-		uint32 size_needed = size + uheapPageAllocBreak;
-		if(size_needed <= USER_HEAP_MAX){
-			res_address = uheapPageAllocBreak;
+	if(re == 0){ // lw no value found extedn logic lw size + break asghar mn el max.. accetpted
+		uint32 nds =size+uheapPageAllocBreak;
+		if(nds<=USER_HEAP_MAX){
+			re = uheapPageAllocBreak;
 			uheapPageAllocBreak += size;
 		}
 	}
+	if(re == 0) return NULL;
 
-	if(res_address == 0) return NULL;
-
-	int ret = sys_create_shared_object(sharedVarName, size, isWritable, (uint32*)res_address);
+	int ret = sys_create_shared_object(sharedVarName, size, isWritable, (uint32*)re);
 	if(ret == E_NO_SHARE) return NULL;
 
 
-	mark_uheap(res_address, res_address + size, size, 0);
-	/*
-	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
-		uheap[i >> 12] = 1;
-	}
-	*/
+	mark_uheap(re, re+size, size, 0);
 	//cprintf("%s successfully allocated in %x\n", sharedVarName, res_address);
-	return (uint32*) res_address;
+	return (uint32*) re;
 	//Comment the following line
 	//panic("smalloc() is not implemented yet...!!");
 }
@@ -346,75 +341,71 @@ void* sget(int32 ownerEnvID, char *sharedVarName)
 		return NULL;
 	}
 
-	uint32 start_address = uheapPageAllocStart;
-	uint32 end_address = uheapPageAllocBreak;
-    uint32 size = ROUNDUP(shr_size, PAGE_SIZE);
+	 uint32 srt=uheapPageAllocStart;
+	uint32 nd=uheapPageAllocBreak;
+	uint32 size=ROUNDUP(shr_size, PAGE_SIZE);
 
-    //CASE 1: EXACT fit
-	uint32 res_address = 0;
-	for (uint32 i = start_address; i < end_address;){
+    ///hansearch 3la ely adha bzabt..
+	uint32 re = 0;
+	for (uint32 i=srt; i<nd;){
 		if(!is_allocated(i)){
-			uint32 j = i;
-			uint32 gap_size = 0;
-			while(j < end_address && !is_allocated(j)){
-				j += PAGE_SIZE;
+			// el j htstrt mn i.> double pointer
+			uint32 j=i;
+			uint32 gp_span =0;//calc space bet j and i..
+			while(j < nd &&!is_allocated(j)) {//j bt3ady 3la el not alloc
+				j +=PAGE_SIZE;
 			}
-			gap_size = j - i;
-			if(gap_size == size){
-				res_address = i;
+			gp_span =j-i; // diff betw. 2 pointers.
+			if(gp_span ==size) { // if exact found..
+				re=i;
 				break;
 			}
-			i = j;
+			i =j; // jump over gap-> to j..
 		}else{
-			i += PAGE_SIZE;
+			i +=PAGE_SIZE;////lw i alloc zawd page_size.. iteerate..
 		}
 	}
-	if(res_address == 0){
-		// CASE 2: WORST FIT
-		uint32 max_size = 0;
-		for (uint32 i = start_address; i < end_address;){
-			if(!is_allocated(i)){
-				uint32 j = i;
-				uint32 gap_size = 0;
-				while(j < end_address && !is_allocated(j)){
-					j += PAGE_SIZE;
+	if(re==0) {
+		//lw ml'ash value y3mal
+		uint32 max_size=0;
+		for (uint32 i=srt;i <nd;){ // it mn startl 7d end
+			if(!is_allocated(i)){ // lw it not alloc
+				uint32 j =i;
+				uint32 gp_span =0;
+				while(j < nd &&!is_allocated(j)){//j bt3ady 3la el not alloc
+					j +=PAGE_SIZE;
 				}
-				gap_size = j - i;
-				if(gap_size >= size && gap_size > max_size){
-					res_address = i;
-					max_size = gap_size;
+				gp_span =j-i; ///diff betw.2 pointers.
+				if(gp_span>=size && gp_span > max_size){ // lw el msafa el fadya akber mn ely etsagelt..
+					re= i;
+					max_size =gp_span;
 				}
-				i = j;
-			}else{
-				i += PAGE_SIZE;
+				i =j;
+			} else {
+				i +=PAGE_SIZE;
 			}
 		}
 	}
 
-	if(res_address == 0){
-		uint32 size_needed = size + uheapPageAllocBreak;
-		if(size_needed <= USER_HEAP_MAX){
-			res_address = uheapPageAllocBreak;
-			uheapPageAllocBreak += size;
+	if(re==0) { // lw no value found extedn logic lw size + break asghar mn el max.. accetpted
+		uint32 nds =size+uheapPageAllocBreak;
+		if(nds<=USER_HEAP_MAX){
+			re = uheapPageAllocBreak;
+			uheapPageAllocBreak +=size;
 		}
 	}
 
-	if(res_address == 0){
+	if(re ==0) { // lw msh mwgoda
 		return NULL;
 	}
 
-	int ret = sys_get_shared_object(ownerEnvID, sharedVarName, (uint32*)res_address);
-	if(ret == E_SHARED_MEM_NOT_EXISTS){
+	int ret = sys_get_shared_object(ownerEnvID, sharedVarName, (uint32*)re);
+	if(ret==E_SHARED_MEM_NOT_EXISTS) { // lw msh feelmem ..
 		return NULL;
 	}
+	mark_uheap(re, re+size, size, 0);
 
-	mark_uheap(res_address, res_address + size, size, 0);
-	/*
-	for(uint32 i = res_address; i < res_address + size; i += PAGE_SIZE){
-		uheap[i >> 12] = 1;
-	}
-	*/
-	return (uint32*)res_address;
+	return (uint32*)re;
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #4 sget
 	//Your code is here
 	//Comment the following line
