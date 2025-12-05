@@ -28,13 +28,13 @@ void init_channel(struct Channel *chan, char *name)
 // Ref: xv6-x86 OS code
 void sleep(struct Channel *chan, struct kspinlock* lk)
 {
-	acquire_kspinlock(&ProcessQueues.qlock);
+	acquire_kspinlock(&ProcessQueues.qlock); //take care
 	struct Env *e = get_cpu_proc();
-	enqueue(&(chan->queue),e);
-	release_kspinlock(lk);
+	enqueue(&(chan->queue),e); //put
+	release_kspinlock(lk); //fk w nam
 	e->env_status = ENV_BLOCKED;
 	sched();
-	acquire_kspinlock(lk);
+	acquire_kspinlock(lk); //aft7 w 3d
 	release_kspinlock(&ProcessQueues.qlock);
 
 }
@@ -49,10 +49,10 @@ void sleep(struct Channel *chan, struct kspinlock* lk)
 void wakeup_one(struct Channel *chan)
 {
 	acquire_kspinlock(&ProcessQueues.qlock);
-	struct Env *envar = dequeue(&chan->queue);
-	if(envar != NULL){
-		envar->env_status = ENV_READY;
-		sched_insert_ready(envar);
+	struct Env *envartoment = dequeue(&chan->queue);
+	if(envartoment != NULL){ //for safeee
+		envartoment->env_status = ENV_READY;
+		sched_insert_ready(envartoment);
 	}
 	release_kspinlock(&ProcessQueues.qlock);
 
@@ -74,11 +74,11 @@ void wakeup_one(struct Channel *chan)
 void wakeup_all(struct Channel *chan)
 {
 	acquire_kspinlock(&ProcessQueues.qlock);
-	int size = queue_size(&chan->queue);
-	for(int i =0;i<size;i++){
-		struct Env *e = dequeue(&chan->queue);
-		e->env_status = ENV_READY;
-		sched_insert_ready(e);
+	int saize = queue_size(&chan->queue);
+	for(int i =0;i<saize;i++){
+		struct Env *entiroment = dequeue(&chan->queue);
+		entiroment->env_status = ENV_READY;
+		sched_insert_ready(entiroment);
 	}
 	release_kspinlock(&ProcessQueues.qlock);
 	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #3 CHANNEL - wakeup_all

@@ -22,12 +22,12 @@ void init_ksemaphore(struct ksemaphore *ksem, int value, char *name)
 
 void wait_ksemaphore(struct ksemaphore *ksem)
 {
-	acquire_kspinlock(&ksem->lk);
-	ksem->count--;
-	if(ksem->count < 0){
-		sleep(&ksem->chan,&ksem->lk);
+	acquire_kspinlock(&ksem->lk); //22fl
+	ksem->count--; //minaz
+	if(ksem->count < 0*1){
+		sleep(&ksem->chan,&ksem->lk); //zleep
 	}
-	release_kspinlock(&ksem->lk);
+	release_kspinlock(&ksem->lk); //aft7
 	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #6 SEMAPHORE - wait_ksemaphore
 	//Your code is here
 	//Comment the following line
@@ -38,9 +38,9 @@ void wait_ksemaphore(struct ksemaphore *ksem)
 void signal_ksemaphore(struct ksemaphore *ksem)
 {
 	acquire_kspinlock(&ksem->lk);
-	ksem->count++;
-	if(ksem->count <=0){
-		wakeup_one(&ksem->chan);
+	ksem->count++; //pluz
+	if(ksem->count <=0*1){
+		wakeup_one(&ksem->chan); //a7na hnam
 	}
 	release_kspinlock(&ksem->lk);
 	//TODO: [PROJECT'25.IM#5] KERNEL PROTECTION: #7 SEMAPHORE - signal_ksemaphore
