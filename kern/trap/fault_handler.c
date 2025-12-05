@@ -270,63 +270,67 @@ void table_fault_handler(struct Env * curenv, uint32 fault_va)
  *
  * 	IMPORTANT: This function SHOULD NOT change any of the given lists
  */
-struct WorkingSetElement* FindVic(struct PageRef_List *pageReferences,struct WS_List *initWorkingSet,struct PageRefElement *it)
+struct WorkingSetElement* FindVic(struct PageRef_List *pageReferences, struct WS_List *ws, struct PageRefElement *current)
 {
-    struct WS_List tmp;
-    LIST_INIT(&tmp);
+    struct WorkingSetElement *victim = NULL;
+    int farthest_use = -1;
 
-    // Copy working set elements into tmp (deep copy nodes)
+    // Iterate over elements in the current working set
     struct WorkingSetElement *elem = NULL;
-    LIST_FOREACH(elem, initWorkingSet)
+    LIST_FOREACH(elem, ws)
     {
-        struct WorkingSetElement *copy =
-            (struct WorkingSetElement *) kmalloc(sizeof(struct WorkingSetElement));
-        copy->virtual_address = elem->virtual_address;
-        LIST_INSERT_TAIL(&tmp, copy);
-    }
+        int distance = 0;
+        struct PageRefElement *future = LIST_NEXT(current);
 
-    // Scan future references
-    while (1==1)
-    {
-        uint32 va = it->virtual_address;
-
-        struct WorkingSetElement *e = NULL;
-        LIST_FOREACH(e, &tmp)
+        // Scan future references
+        while (future != NULL)
         {
-            if (e->virtual_address == va)
-            {
-                LIST_REMOVE(&tmp, e);
-                kfree(e);
+            distance++;
+            if (future->virtual_address == elem->virtual_address)
                 break;
-            }
+            future = LIST_NEXT(future);
         }
 
-        if (LIST_SIZE(&tmp) == 1 || LIST_NEXT(it) == NULL)
+        // If element is not found in the future, return it immediately
+        if (future == NULL)
+            return elem;
+
+        // Otherwise, choose the one used farthest in the future
+        if (distance > farthest_use)
         {
-            return LIST_FIRST(&tmp);
+            farthest_use = distance;
+            victim = elem;
         }
-
-        it = LIST_NEXT(it);
     }
 
-    return NULL;
+    // If all elements are found in the future, return the farthest one
+    return victim;
 }
 
-int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize,struct PageRef_List *pageReferences)
+int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct PageRef_List *pageReferences)
 {
-    struct PageRefElement *it = NULL;
-    int cnt = 0;
+    int fault_count = 0;
+    struct WS_List ws;
+    LIST_INIT(&ws);
 
-    LIST_FOREACH(it, pageReferences)
+    // Copy initial working set into our local WS
+    struct WorkingSetElement *it = NULL;
+    LIST_FOREACH(it, initWorkingSet)
     {
-        uint32 va = it->virtual_address;
-        int hit = 0;
+        struct WorkingSetElement *copy = kmalloc(sizeof(struct WorkingSetElement));
+        copy->virtual_address = it->virtual_address;
+        LIST_INSERT_TAIL(&ws, copy);
+    }
 
-        // Check hit
+    struct PageRefElement *ref = NULL;
+    LIST_FOREACH(ref, pageReferences)
+    {
+        // Check if page is already in working set
+        int hit = 0;
         struct WorkingSetElement *elem = NULL;
-        LIST_FOREACH(elem, initWorkingSet)
+        LIST_FOREACH(elem, &ws)
         {
-            if (va == (uint32)elem->virtual_address)
+            if (elem->virtual_address == ref->virtual_address)
             {
                 hit = 1;
                 break;
@@ -335,33 +339,41 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize,struct 
 
         if (!hit)
         {
-            // Create new WS node
-            struct WorkingSetElement *kapshFda =(struct WorkingSetElement *)kmalloc(sizeof(struct WorkingSetElement));
-            kapshFda->virtual_address = va;
+            // Page fault
+            fault_count++;
 
-            if (LIST_SIZE(initWorkingSet) == maxWSSize)
+            struct WorkingSetElement *new_elem = kmalloc(sizeof(struct WorkingSetElement));
+            new_elem->virtual_address = ref->virtual_address;
+
+            if (LIST_SIZE(&ws) == maxWSSize)
             {
-                //cprintf("warm\n");
-                struct WorkingSetElement *vic =FindVic(pageReferences, initWorkingSet, it);
-                if (vic == NULL){
-                    vic = LIST_FIRST(initWorkingSet);
+                // Choose victim using OPT
+                struct WorkingSetElement *victim = FindVic(pageReferences, &ws, ref);
+                if (victim == NULL)
+                {
+                    // fallback
+                    victim = LIST_FIRST(&ws);
                 }
-
-                LIST_INSERT_BEFORE(initWorkingSet, vic, kapshFda);
-                LIST_REMOVE(initWorkingSet, vic);
-            }
-            else
-            {
-                //cprintf("cold\n");
-                LIST_INSERT_TAIL(initWorkingSet, kapshFda);
+                LIST_REMOVE(&ws, victim);
+                kfree(victim);
             }
 
-            cnt++;
+            LIST_INSERT_TAIL(&ws, new_elem);
         }
     }
-    cprintf("cnt: %d\n",cnt);
-    return cnt;
+
+    // Free remaining elements in WS
+    struct WorkingSetElement *tmp = NULL;
+    while (!LIST_EMPTY(&ws))
+    {
+        tmp = LIST_FIRST(&ws);
+        LIST_REMOVE(&ws, tmp);
+        kfree(tmp);
+    }
+
+    return fault_count;
 }
+
 
 
 void ClearActive(struct Env * faulted_env){
