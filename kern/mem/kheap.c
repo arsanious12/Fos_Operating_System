@@ -22,6 +22,9 @@ struct kheap_page{
 	uint32 size;
 };
 uint32 kheap_address[1024*1024];
+struct sleeplock kmallocSle;
+struct sleeplock VaSle,PaSle;
+
 void kheap_init()
 {
 	//==================================================================================
@@ -35,6 +38,10 @@ void kheap_init()
 		set_kheap_strategy(KHP_PLACE_CUSTOMFIT);
 		kheapPageAllocStart = dynAllocEnd + PAGE_SIZE;
 		kheapPageAllocBreak = kheapPageAllocStart;
+		init_sleeplock(&kmallocSle,"kmallocSem");
+		init_sleeplock(&VaSle,"VaSem");
+		init_sleeplock(&PaSle,"PaSem");
+
 	}
 	//==================================================================================
 	//==================================================================================
@@ -124,11 +131,13 @@ void* kmalloc(unsigned int size)
 		}
 	}
 	cprintf("Memory END ///////////////////////\n");*/
+	acquire_sleeplock(&kmallocSle);
 	if (size <= DYN_ALLOC_MAX_BLOCK_SIZE) {
 		uint32 va = (uint32)alloc_block(size);
 		uint32 page_va = to_page_va(to_page_info(va));
 		//kheap_address[kheap_physical_address(page_va) >> 12] = page_va;
 		/*cprintf("blk va: %x, of pageVa: %x, idx in kadd: %d\n", va, page_va, kheap_physical_address(page_va) >> 12);*/
+		release_sleeplock(&kmallocSle);
 		return (uint32 *)va;
 	}
 	else {
@@ -159,6 +168,7 @@ void* kmalloc(unsigned int size)
 				if (SumOfSizes == ROUNDUP(size,PAGE_SIZE) && (j + 1 < arrSize && kheap_pages[j + 1].allocated == 1)) {
 					kheap__aloc(startva,i,size,1);
 					//cprintf("Exact fit: %u\n",size);
+					release_sleeplock(&kmallocSle);
 					return (uint32*)startva;
 				}
 			}
@@ -199,6 +209,7 @@ void* kmalloc(unsigned int size)
 			//cprintf("Start Va: %x\n",StartOfMaxVa);
 			//cprintf("End: %x\n",StartOfMaxVa+ROUNDUP(size,PAGE_SIZE));
 			//cprintf("Worst fit: %u\n  ",size);
+			release_sleeplock(&kmallocSle);
 			return (uint32*)StartOfMaxVa;
 		}
 		////////////////////Extend/////////////////////////////////
@@ -207,6 +218,7 @@ void* kmalloc(unsigned int size)
 			startva = kheapPageAllocBreak;
 			kheapPageAllocBreak +=ROUNDUP(size,PAGE_SIZE);
 			kheap__aloc(startva,kheapPageAllocBreak,size,1);
+			release_sleeplock(&kmallocSle);
 			return (uint32*)startva;
 		}
 		/*cprintf("Memory Start///////////// %x\n");
@@ -221,6 +233,7 @@ void* kmalloc(unsigned int size)
 		}
 		cprintf("Memory END ///////////////////////\n");*/
 	}
+	release_sleeplock(&kmallocSle);
 	return NULL;
 
 	//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #1 kmalloc
@@ -241,6 +254,7 @@ void kfree(void* virtual_address)
 			//Your code is here
 			//Comment the following line
 			//panic("kfree() is not implemented yet...!!");
+	acquire_sleeplock(&kmallocSle);
 	uint32 va = (uint32) virtual_address;
 
 	uint32 Size = 0;
@@ -253,6 +267,7 @@ void kfree(void* virtual_address)
 		}
 		*/
 		free_block(virtual_address);
+		release_sleeplock(&kmallocSle);
 		return;
 	}
 	if(va<kheapPageAllocStart||va>=kheapPageAllocBreak /*!kheap_pages[(va - kheapPageAllocStart)/PAGE_SIZE].allocated*/){
@@ -302,6 +317,7 @@ void kfree(void* virtual_address)
 		}
 
 	}
+	release_sleeplock(&kmallocSle);
 	/*cprintf("Memory Start After///////////// %x\n",virtual_address);
 				 k=-1;
 				for(uint32 i = kheapPageAllocStart;i< kheapPageAllocBreak;i+= PAGE_SIZE){
@@ -329,13 +345,15 @@ unsigned int kheap_virtual_address(unsigned int physical_address)
 	//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #3 kheap_virtual_address
 	//Your code is here
 	//Comment the following line
+	//acquire_sleeplock(&VaSle);
 	uint32 offset=physical_address & 0xFFF;
 	uint32 fnum=physical_address>>12;
 	uint32 va = (kheap_address[fnum]&~0xFFF)|offset;
 	if(kheap_address[fnum]!=0){
+		release_sleeplock(&VaSle);
 		return va;
 	}
-
+	release_sleeplock(&VaSle);
 	return 0;
 	/*for (uint32 i = 0; i < (1024 * 1024); i++){
 		cprintf("%d\n",i);
@@ -359,22 +377,28 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 	//TODO: [PROJECT'25.GM#2] KERNEL HEAP - #4 kheap_physical_address
 	//Your code is here
 	//Comment the following line
+	acquire_sleeplock(&PaSle);
 	if(virtual_address >= kheapPageAllocStart && virtual_address < kheapPageAllocBreak){
 		uint32 *ptr_page_table = NULL;
 		int ret = get_page_table(ptr_page_directory, (uint32)virtual_address, &ptr_page_table);
 
 		if(ret == TABLE_NOT_EXIST||!kheap_pages[(virtual_address - kheapPageAllocStart)/PAGE_SIZE].allocated){
+			release_sleeplock(&PaSle);
 			return 0;
 			//ptr_page_table = create_page_table(ptr_page_directory, (uint32)virtual_address);
 		}
 		uint32 pageFrameNum = ptr_page_table[PTX(virtual_address)]&(0xFFFFF000);
+		release_sleeplock(&PaSle);
 		return (pageFrameNum | PGOFF(virtual_address));
 	}
 	else if(virtual_address >= dynAllocStart && virtual_address < dynAllocEnd){
 		struct PageInfoElement* elm = to_page_info(virtual_address);
 
 		// if the page not available.
-		if(elm->block_size == 0) return 0;
+		if(elm->block_size == 0) {
+			release_sleeplock(&PaSle);
+			return 0;
+		}
 
 		uint32 allocStartAdd = to_page_va(elm);
 		uint32 allocEndAdd = allocStartAdd + PAGE_SIZE;
@@ -385,9 +409,11 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 		int ret = get_page_table(ptr_page_directory, (uint32)virtual_address, &ptr_page_table);
 		if(ret == TABLE_NOT_EXIST){
 			cprintf("TABLE_NOT_EXIST\n");
+			release_sleeplock(&PaSle);
 			return 0;
 		}
 		uint32 pageFrameNum = ptr_page_table[PTX(virtual_address)]&(0xFFFFF000);
+		release_sleeplock(&PaSle);
 		return (pageFrameNum | PGOFF(virtual_address));
 		/*
 		struct PageInfoElement* elm = to_page_info(virtual_address);
@@ -423,6 +449,7 @@ unsigned int kheap_physical_address(unsigned int virtual_address)
 		}
 		*/
 	}
+	release_sleeplock(&PaSle);
 	return 0;
 
 	//panic("kheap_physical_address() is not implemented yet...!!");

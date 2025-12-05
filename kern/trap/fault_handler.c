@@ -331,24 +331,29 @@ int get_optimal_num_faults(struct WS_List *initWorkingSet, int maxWSSize, struct
 
 }
 
-void ClearActive(struct Env * faulted_env,uint32 fault_va){
+void ClearActive(struct Env * faulted_env){
 	while(LIST_SIZE(&faulted_env->ActiveList) > 0){
 		struct WorkingSetElement *IT = LIST_FIRST(&faulted_env->ActiveList);
 		LIST_REMOVE(&faulted_env->ActiveList , IT);
-		pt_set_page_permissions(faulted_env->env_page_directory,fault_va,0,PERM_PRESENT);
+		//unmap_frame(faulted_env->env_page_directory,IT->virtual_address);
+		pt_set_page_permissions(faulted_env->env_page_directory,IT->virtual_address,0,PERM_PRESENT);
 	}
 
 }
 void AddToActive(struct Env * faulted_env, uint32 fault_va){
+#if USE_KHEAP
 	struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
 	LIST_INSERT_TAIL(&(faulted_env->ActiveList),newElem);
 	struct FrameInfo *fr=NULL;
 	allocate_frame(&fr);
 	map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
 	//pt_set_page_permissions(faulted_env->env_page_directory,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER,0);
-
+#else
+	panic("not handled when KERN HEAP is disabled");
+#endif
 }
 void AddToRef(struct Env * faulted_env, uint32 fault_va){
+#if USE_KHEAP
 	struct PageRefElement *ele = (struct PageRefElement* )kmalloc(sizeof(struct PageRefElement));
 	if(ele == NULL){
 		panic("No space in kheap");
@@ -364,12 +369,16 @@ void AddToRef(struct Env * faulted_env, uint32 fault_va){
 	//map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
 	//pt_set_page_permissions(faulted_env->env_page_directory,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER,0);
 	//pt_set_page_permissions(faulted_env->env_page_directory , fault_va , PERM_PRESENT , 0);
+#else
+	panic("not handled when KERN HEAP is disabled");
+#endif
 
 }
 
 void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 {
 #if USE_KHEAP
+
 	if (isPageReplacmentAlgorithmOPTIMAL())
 	{
 		//TODO: [PROJECT'25.IM#1] FAULT HANDLER II - #1 Optimal Reference Stream
@@ -388,15 +397,15 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		//cprintf("%x, RO:%x\n",fault_va,ROUNDDOWN(fault_va,PAGE_SIZE));
 		//cprintf("%d",faulted_env->page_WS_max_size);
 
-		if(LIST_SIZE(&faulted_env->ActiveList) == 0){
+		/*if(LIST_SIZE(&faulted_env->referenceStreamList) == 0){
 			struct WorkingSetElement* it;
 			LIST_FOREACH(it, &(faulted_env->page_WS_list)){
 				if(it == NULL) break;
 				LIST_INSERT_TAIL(&faulted_env->ActiveList, it);
 			}
-		}
+		}*/
 
-		fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+		/*fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 		uint32* pg_table = NULL;
 		struct FrameInfo* ptr_fr = get_frame_info(faulted_env->env_page_directory, fault_va, &pg_table);
 
@@ -408,7 +417,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			map_frame(faulted_env->env_page_directory,fr,fault_va,PERM_WRITEABLE|PERM_UHPAGE|PERM_PRESENT|PERM_USER);
 			//get_page_table(faulted_env->env_page_directory, fault_va, &pg_table);
 		}else{
-			pt_set_page_permissions(faulted_env->env_page_directory,fault_va,0,PERM_PRESENT);
+			pt_set_page_permissions(faulted_env->env_page_directory,fault_va,PERM_PRESENT,0);
 		}
 
 		//1: check if the active ws is changed ...
@@ -442,12 +451,20 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		struct PageRefElement *ref_elm = (struct PageRefElement* )kmalloc(sizeof(struct PageRefElement));
 		ref_elm->virtual_address = fault_va;
 		LIST_INSERT_TAIL(&faulted_env->referenceStreamList, ref_elm);
+*/
 
-
-		/*
+		fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+//		if(LIST_EMPTY(&faulted_env->referenceStreamList) == 1){
+//			struct WorkingSetElement* it =NULL;
+//			LIST_FOREACH(it, &(faulted_env->page_WS_list)){
+//				//AddToActive(faulted_env,it->virtual_address);
+//				//pt_set_page_permissions(faulted_env->env_page_directory,it->virtual_address,PERM_PRESENT,0);
+//				LIST_INSERT_TAIL(&faulted_env->ActiveList, it);
+//				//AddToRef(faulted_env,fault_va);
+//			}
+//		}
 		struct WorkingSetElement *IT = NULL;
 
-		IT = NULL;
 		bool flag=0;
 		LIST_FOREACH(IT , &faulted_env->ActiveList ){
 			if((uint32)IT->virtual_address == fault_va){
@@ -461,7 +478,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			int o = pf_read_env_page(faulted_env , &fault_va);
 			cprintf("%d\n",faulted_env->page_WS_max_size);
 			if (LIST_SIZE(&(faulted_env->ActiveList)) == faulted_env->page_WS_max_size){
-				ClearActive(faulted_env,fault_va);
+				ClearActive(faulted_env);
 				//fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 			}
 			AddToRef(faulted_env,fault_va);
@@ -469,7 +486,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 
 		}
 		 //env_page_ws_print(faulted_env);
-*/
+
 	}
 	else
 	{
@@ -660,169 +677,169 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 			else if (isPageReplacmentAlgorithmModifiedCLOCK())
 			{
 
-						  //cprintf("in function \n");
-						struct Env* e =  faulted_env;
-						struct WorkingSetElement *victimWSElement = NULL;
-						struct WorkingSetElement *fb=NULL;//for FALLBACK (0,1)
-						struct WorkingSetElement *hell=e->page_last_WS_element;
-						bool ty1=0;
-						if(hell == NULL){//lw dy awel run yebda' mn elhead
-							//cprintf("NULL hell \n");
-							hell=LIST_FIRST(&(e->page_WS_list));
+				  //cprintf("in function \n");
+				struct Env* e =  faulted_env;
+				struct WorkingSetElement *victimWSElement = NULL;
+				struct WorkingSetElement *fb=NULL;//for FALLBACK (0,1)
+				struct WorkingSetElement *hell=e->page_last_WS_element;
+				bool ty1=0;
+				if(hell == NULL){//lw dy awel run yebda' mn elhead
+					//cprintf("NULL hell \n");
+					hell=LIST_FIRST(&(e->page_WS_list));
+				}
+				uint32 wCount=LIST_SIZE(&(e->page_WS_list));
+				//cprintf("List of size : %d\n",wCount);
+				uint32 check=0;
+				while(victimWSElement==NULL){
+					//cprintf("in while LOOP \n");
+				 int pe=pt_get_page_permissions(e->env_page_directory,hell->virtual_address);
+				  if(pe<0|| !(pe&PERM_PRESENT) )// lw elpage not present aw invalid
+				  {
+					 //hell=LIST_NEXT(hell);//skip it
+					  if(LIST_NEXT(hell)==NULL){
+						hell=LIST_FIRST(&(e->page_WS_list));
+
+					  }
+					  else
+						hell=LIST_NEXT(hell);
+					 // check++;
+					  continue;
+				  }
+				  int us=(pe&PERM_USED);
+				  int mo=(pe&PERM_MODIFIED);
+				  if(ty1==0){
+					  //cprintf("IN IF \n");
+				  if(!us&&!mo){
+					  //cprintf("0,0\n");
+					  victimWSElement=hell;
+					  if(LIST_NEXT(hell)==NULL){
+						  e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
+					   }
+					  else
+						  e->page_last_WS_element=LIST_NEXT(hell);
+					  break;
+				  }
+				  }
+				  else{
+					 // cprintf("ELSE \n");
+				  if(!us&&mo&&fb==NULL){
+					  //cprintf("0,1\n");
+					  victimWSElement=hell;
+					  if(LIST_NEXT(hell)==NULL){
+						 e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
 						}
-						uint32 wCount=LIST_SIZE(&(e->page_WS_list));
-						//cprintf("List of size : %d\n",wCount);
-						uint32 check=0;
-						while(victimWSElement==NULL){
-							//cprintf("in while LOOP \n");
-						 int pe=pt_get_page_permissions(e->env_page_directory,hell->virtual_address);
-						  if(pe<0|| !(pe&PERM_PRESENT) )// lw elpage not present aw invalid
-						  {
-							 //hell=LIST_NEXT(hell);//skip it
-							  if(LIST_NEXT(hell)==NULL){
-								hell=LIST_FIRST(&(e->page_WS_list));
+					  else
+						e->page_last_WS_element=LIST_NEXT(hell);
+					  break;
+				   }
+				  if(us){
+					  //cprintf("1 HELL %x\n",hell);
+					  pt_set_page_permissions(e->env_page_directory,hell->virtual_address,0,PERM_USED); //3lshan akhleha zero llnext iteration
+	//					  if(LIST_NEXT(hell)==NULL)
+	//					 	hell=LIST_FIRST(&(e->page_WS_list));
+	//					  else
+	//					   hell=LIST_NEXT(hell);
+	//					  check++;
+	//					  continue;
+				  }
+				  }
+				  if(LIST_NEXT(hell)==NULL){
+					hell=LIST_FIRST(&(e->page_WS_list));
+					e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
 
-							  }
-							  else
-								hell=LIST_NEXT(hell);
-							 // check++;
-							  continue;
-						  }
-						  int us=(pe&PERM_USED);
-						  int mo=(pe&PERM_MODIFIED);
-						  if(ty1==0){
-							  //cprintf("IN IF \n");
-						  if(!us&&!mo){
-							  //cprintf("0,0\n");
-							  victimWSElement=hell;
-							  if(LIST_NEXT(hell)==NULL){
-								  e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
-							   }
-							  else
-								  e->page_last_WS_element=LIST_NEXT(hell);
-							  break;
-						  }
-						  }
-						  else{
-							 // cprintf("ELSE \n");
-						  if(!us&&mo&&fb==NULL){
-							  //cprintf("0,1\n");
-							  victimWSElement=hell;
-							  if(LIST_NEXT(hell)==NULL){
-								 e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
-								}
-							  else
-								e->page_last_WS_element=LIST_NEXT(hell);
-							  break;
-						   }
-						  if(us){
-							  //cprintf("1 HELL %x\n",hell);
-							  pt_set_page_permissions(e->env_page_directory,hell->virtual_address,0,PERM_USED); //3lshan akhleha zero llnext iteration
-		//					  if(LIST_NEXT(hell)==NULL)
-		//					 	hell=LIST_FIRST(&(e->page_WS_list));
-		//					  else
-		//					   hell=LIST_NEXT(hell);
-		//					  check++;
-		//					  continue;
-						  }
-						  }
-						  if(LIST_NEXT(hell)==NULL){
-							hell=LIST_FIRST(&(e->page_WS_list));
-							e->page_last_WS_element=LIST_FIRST(&(e->page_WS_list));
+				  }
+				  else{
+				   hell=LIST_NEXT(hell);
+				   e->page_last_WS_element=hell;
+				  }
+				  check++;
+				  if(check==wCount){
+					check=0;
+					 if(ty1==0){
+					  ty1=1;
+					  }
+					 else
+					  ty1=0;
 
-						  }
-						  else{
-						   hell=LIST_NEXT(hell);
-						   e->page_last_WS_element=hell;
-						  }
-						  check++;
-						  if(check==wCount){
-							check=0;
-							 if(ty1==0){
-							  ty1=1;
-							  }
-							 else
-							  ty1=0;
+				  }
 
-						  }
+				}
 
-						}
+	//				  if(victimWSElement==NULL){
+	//					  cprintf("FALLBACK %d\n",fb);
+	//					  victimWSElement=fb;
+	//				  }
+				  if(victimWSElement==NULL){//Nothing matched f hashel elly hell is pointing to
 
-		//				  if(victimWSElement==NULL){
-		//					  cprintf("FALLBACK %d\n",fb);
-		//					  victimWSElement=fb;
-		//				  }
-						  if(victimWSElement==NULL){//Nothing matched f hashel elly hell is pointing to
+					  //cprintf("CHECK %d\n",check);
+					  victimWSElement=hell;
+				   }
+				  uint32 pe=pt_get_page_permissions(e->env_page_directory,victimWSElement->virtual_address);
+				  if(pe&PERM_MODIFIED){
+					  //cprintf("Modify\n");
+					uint32 *p=NULL;
+					get_page_table(e->env_page_directory,victimWSElement->virtual_address,&p);
+					struct FrameInfo*fr=get_frame_info(e->env_page_directory,victimWSElement->virtual_address,&p);
+					pf_update_env_page(e,victimWSElement->virtual_address,fr);
+				}
+				struct WorkingSetElement *NNN = LIST_NEXT(victimWSElement);
+				if(NNN==NULL){
+				 //cprintf("FIFO\n");
+				 NNN=LIST_FIRST(&(e->page_WS_list));
+				}
 
-							  //cprintf("CHECK %d\n",check);
-							  victimWSElement=hell;
-						   }
-						  uint32 pe=pt_get_page_permissions(e->env_page_directory,victimWSElement->virtual_address);
-						  if(pe&PERM_MODIFIED){
-							  //cprintf("Modify\n");
-							uint32 *p=NULL;
-							get_page_table(e->env_page_directory,victimWSElement->virtual_address,&p);
-							struct FrameInfo*fr=get_frame_info(e->env_page_directory,victimWSElement->virtual_address,&p);
-							pf_update_env_page(e,victimWSElement->virtual_address,fr);
-						}
-						struct WorkingSetElement *NNN = LIST_NEXT(victimWSElement);
-						if(NNN==NULL){
-						 //cprintf("FIFO\n");
-						 NNN=LIST_FIRST(&(e->page_WS_list));
-						}
+				fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
+				unmap_frame(e->env_page_directory,victimWSElement->virtual_address);
+				LIST_REMOVE(&faulted_env->page_WS_list, victimWSElement);
 
-						fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
-						unmap_frame(e->env_page_directory,victimWSElement->virtual_address);
-						LIST_REMOVE(&faulted_env->page_WS_list, victimWSElement);
+				//cprintf("List of size AFTER : %d\n",LIST_SIZE(&(e->page_WS_list)));
+				if(LIST_EMPTY(&(e->page_WS_list)))
+				  e->page_last_WS_element=NULL;
+				else
+				 e->page_last_WS_element=NNN;
 
-						//cprintf("List of size AFTER : %d\n",LIST_SIZE(&(e->page_WS_list)));
-						if(LIST_EMPTY(&(e->page_WS_list)))
-						  e->page_last_WS_element=NULL;
-						else
-						 e->page_last_WS_element=NNN;
+				struct FrameInfo *NewFrame=NULL;
+				allocate_frame(&NewFrame);
+				map_frame(e->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER|PERM_USED);
+				int res = pf_read_env_page(e,(uint32*)fault_va);
+				//cprintf("Ah\n");
+				int to_be_placed = 0;
+				if(res == E_PAGE_NOT_EXIST_IN_PF){
+					//cprintf("Ah2\n");
+					if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
+					//cprintf("Ah3\n");
+					to_be_placed = 1;
+					}
+				}
+				else{
+				to_be_placed = 1;
+				}
+				if(to_be_placed){
 
-						struct FrameInfo *NewFrame=NULL;
-						allocate_frame(&NewFrame);
-						map_frame(e->env_page_directory,NewFrame,fault_va,PERM_WRITEABLE|PERM_PRESENT|PERM_UHPAGE|PERM_USER|PERM_USED);
-						int res = pf_read_env_page(e,(uint32*)fault_va);
-						//cprintf("Ah\n");
-						int to_be_placed = 0;
-						if(res == E_PAGE_NOT_EXIST_IN_PF){
-							//cprintf("Ah2\n");
-							if(((fault_va >= USER_HEAP_START && fault_va < USER_HEAP_MAX) || (fault_va>= USTACKBOTTOM && fault_va< USTACKTOP))){
-							//cprintf("Ah3\n");
-							to_be_placed = 1;
-							}
-						}
-						else{
-						to_be_placed = 1;
-						}
-						if(to_be_placed){
+					struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
+					if(faulted_env->page_last_WS_element == NULL || faulted_env->page_last_WS_element == LIST_FIRST(&faulted_env->page_WS_list)){
+						LIST_INSERT_TAIL(&(faulted_env->page_WS_list),newElem);
+					}
+					else{
+						LIST_INSERT_BEFORE(&(faulted_env->page_WS_list),faulted_env->page_last_WS_element,newElem);
+						//faulted_env->page_last_WS_element = LIST_NEXT(faulted_env->page_last_WS_element);
+					}
 
-							struct WorkingSetElement* newElem = env_page_ws_list_create_element(faulted_env,fault_va);
-							if(faulted_env->page_last_WS_element == NULL || faulted_env->page_last_WS_element == LIST_FIRST(&faulted_env->page_WS_list)){
-								LIST_INSERT_TAIL(&(faulted_env->page_WS_list),newElem);
-							}
-							else{
-								LIST_INSERT_BEFORE(&(faulted_env->page_WS_list),faulted_env->page_last_WS_element,newElem);
-								//faulted_env->page_last_WS_element = LIST_NEXT(faulted_env->page_last_WS_element);
-							}
-
-							uint32 curSize = LIST_SIZE(&faulted_env->page_WS_list);
-							if (curSize == faulted_env->page_WS_max_size && faulted_env->page_last_WS_element == NULL){
-								faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
-							}
-						}else{
-							//cprintf("PPPP\n");
-						unmap_frame(e->env_page_directory, fault_va);
-						env_exit();
-						}
-						//cprintf("AFTER: \n");
-						//env_page_ws_print(e);
-						//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
-						//Your code is here
-						//Comment the following line
-						//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
+					uint32 curSize = LIST_SIZE(&faulted_env->page_WS_list);
+					if (curSize == faulted_env->page_WS_max_size && faulted_env->page_last_WS_element == NULL){
+						faulted_env->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&faulted_env->page_WS_list);
+					}
+				}else{
+					//cprintf("PPPP\n");
+				unmap_frame(e->env_page_directory, fault_va);
+				env_exit();
+				}
+				//cprintf("AFTER: \n");
+				//env_page_ws_print(e);
+				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
+				//Your code is here
+				//Comment the following line
+				//panic("page_fault_handler().REPLACEMENT is not implemented yet...!!");
 			}
 		}
 	}

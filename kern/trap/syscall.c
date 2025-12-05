@@ -522,7 +522,9 @@ void sys_bypassPageFault(uint8 instrLength)
 {
 	bypassInstrLength = instrLength;
 }
-
+void sys_env_set_priority(int32 envID, int priority){
+    env_set_priority(envID,priority);
+}
 
 /**************************************************************************/
 /************************* SYSTEM CALLS HANDLER ***************************/
@@ -715,6 +717,9 @@ uint32 syscall(uint32 syscallno, uint32 a1, uint32 a2, uint32 a3, uint32 a4, uin
 	case SYS_get_optimal_num_faults:
 		return sys_get_optimal_num_faults();
 
+	case SYS_env_set_priority:
+		sys_env_set_priority((int32)a1, (int)a2);
+		break;
 	case NSYSCALLS:
 		return 	-E_INVAL;
 		break;

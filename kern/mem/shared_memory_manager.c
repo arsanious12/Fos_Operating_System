@@ -24,7 +24,7 @@
 void sharing_init()
 {
 #if USE_KHEAP
-	LIST_INIT(&AllShares.shares_list) ;
+	LIST_INIT(&AllShares.shares_list);
 	init_kspinlock(&AllShares.shareslock, "shares lock");
 	//init_sleeplock(&AllShares.sharessleeplock, "shares sleep lock");
 #else
@@ -107,9 +107,12 @@ struct Share* alloc_share(int32 ownerID, char* shareName, uint32 size, uint8 isW
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #1 alloc_share
 	//Your code is here
 	//Comment the following line
+#if USE_KHEAP
 	struct Share* ptr_shared_object = (struct Share*)kmalloc(sizeof(struct Share));
 
-	if(ptr_shared_object == NULL) return NULL;
+	if(ptr_shared_object == NULL){
+		return NULL;
+	}
 
 	ptr_shared_object->ID = (uint32)ptr_shared_object & ~(0x80000000);
 	ptr_shared_object->ownerID = ownerID;
@@ -134,22 +137,25 @@ struct Share* alloc_share(int32 ownerID, char* shareName, uint32 size, uint8 isW
 	for (int i= 0; i< framesCount; ++i){
 		ptr_shared_object->framesStorage[i] = 0;
 	}
-
 	return ptr_shared_object;
 	//panic("alloc_share() is not implemented yet...!!");
+
+#else
+	panic("not handled when KERN HEAP is disabled");
+#endif
 }
 
-void print_allshare(){
-	cprintf("\n");
-	int count = LIST_SIZE(&(AllShares.shares_list));
-	struct Share* elm = LIST_FIRST(&(AllShares.shares_list));
-	for (int i =0; i< count; ++i){
-		cprintf("%x:%d:%s\n", elm, elm->references, elm->name);
-		if(LIST_NEXT(elm) == NULL) break;
-		elm = LIST_NEXT(elm);
-	}
-	cprintf("\n");
-}
+//void print_allshare(){
+//	cprintf("\n");
+//	int count = LIST_SIZE(&(AllShares.shares_list));
+//	struct Share* elm = LIST_FIRST(&(AllShares.shares_list));
+//	for (int i =0; i< count; ++i){
+//		cprintf("%x:%d:%s\n", elm, elm->references, elm->name);
+//		if(LIST_NEXT(elm) == NULL) break;
+//		elm = LIST_NEXT(elm);
+//	}
+//	cprintf("\n");
+//}
 
 
 //=========================
@@ -158,11 +164,12 @@ void print_allshare(){
 
 int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWritable, void* virtual_address)
 {
+#if USE_KHEAP
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #3 create_shared_object
 	//Your code is here
 	//Comment the following line
 	//panic("create_shared_object() is not implemented yet...!!");
-
+	acquire_kspinlock(&AllShares.shareslock);
 	struct Env* myenv = get_cpu_proc();
 
 	//cprintf("\n\n before allocating: ");
@@ -172,6 +179,7 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	struct Share* ptr = find_share(ownerID, shareName);
 	if(ptr != NULL) {
 		//cprintf("no creating new object already exist\n");
+		release_kspinlock(&AllShares.shareslock);
 		return E_SHARED_MEM_EXISTS;
 	}
 
@@ -182,6 +190,7 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	// allocating the share object
 	struct Share* ptr_shared_object = alloc_share(ownerID, shareName, size, isWritable);
 	if(ptr_shared_object == NULL) {
+		release_kspinlock(&AllShares.shareslock);
 		return E_NO_SHARE;
 	}
 
@@ -200,8 +209,9 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	}
 
 
-	acquire_kspinlock(&AllShares.shareslock);
+	//acquire_kspinlock(&AllShares.shareslock);
 	LIST_INSERT_TAIL(&AllShares.shares_list, ptr_shared_object);
+
 	release_kspinlock(&AllShares.shareslock);
 
 	//cprintf("\n\n after allocating: ");
@@ -214,6 +224,9 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 	//	a) ID of the shared object (its VA after masking out its msb) if success
 	//	b) E_SHARED_MEM_EXISTS if the shared object already exists
 	//	c) E_NO_SHARE if failed to create a shared object
+#else
+	panic("not handled when KERN HEAP is disabled");
+#endif
 
 }
 
@@ -222,11 +235,11 @@ int create_shared_object(int32 ownerID, char* shareName, uint32 size, uint8 isWr
 //======================
 int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 {
+#if USE_KHEAP
 	//TODO: [PROJECT'25.IM#3] SHARED MEMORY - #5 get_shared_object
 	//Your code is here
 	//Comment the following line
 	//panic("get_shared_object() is not implemented yet...!!");
-
 	struct Env* myenv = get_cpu_proc(); //The calling
 
 	//cprintf("\ncurrent shared list: ");
@@ -262,6 +275,9 @@ int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 	// RETURN:
 	//	a) ID of the shared object (its VA after masking out its msb) if success
 	//	b) E_SHARED_MEM_NOT_EXISTS if the shared object is not exists
+#else
+	panic("not handled when KERN HEAP is disabled");
+#endif
 
 }
 //==================================================================================//
@@ -274,18 +290,23 @@ int get_shared_object(int32 ownerID, char* shareName, void* virtual_address)
 //it should free its framesStorage and the share object itself
 void free_share(struct Share* ptrShare)
 {
+#if USE_KHEAP
 	//TODO: [PROJECT'25.BONUS#5] EXIT #2 - free_share
 	//Your code is here
 	//Comment the following line
-	//panic("free_share() is not implemented yet...!!");
+	panic("free_share() is not implemented yet...!!");
 	acquire_kspinlock(&AllShares.shareslock);
 	LIST_REMOVE(&AllShares.shares_list, ptrShare);
-	release_kspinlock(&AllShares.shareslock);
 	kfree(ptrShare);
+	release_kspinlock(&AllShares.shareslock);
+#else
+	panic("not handled when KERN HEAP is disabled");
+#endif
 }
 
 
 struct Share* get_share_object_ID(int32 sharedObjectID){
+#if USE_KHEAP
 	struct Share * ret = NULL;
 	bool wasHeld = holding_kspinlock(&(AllShares.shareslock));
 	if (!wasHeld)
@@ -309,9 +330,13 @@ struct Share* get_share_object_ID(int32 sharedObjectID){
 		release_kspinlock(&(AllShares.shareslock));
 	}
 	return ret;
+#else
+	panic("not handled when KERN HEAP is disabled");
+#endif
 }
 
 int32 get_shared_object_id(void* virtual_address){
+#if USE_KHEAP
 	struct Share * ret = NULL;
 	struct Env * e = get_cpu_proc();
 	uint32 va = (uint32)virtual_address;
@@ -346,6 +371,9 @@ int32 get_shared_object_id(void* virtual_address){
 		release_kspinlock(&(AllShares.shareslock));
 	}
 	return ret->ID;
+#else
+	panic("not handled when KERN HEAP is disabled");
+#endif
 }
 
 //=========================

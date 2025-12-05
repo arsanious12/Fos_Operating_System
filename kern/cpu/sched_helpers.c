@@ -690,15 +690,39 @@ int get_load_average()
 /********* for Priority RR Scheduler *************/
 void env_set_priority(int envID, int priority)
 {
+//	 cprintf("SET pri 1\n");
 	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 env_set_priority
 	//Your code is here
 	//Comment the following line
-	panic("env_set_priority() is not implemented yet...!!");
+	// panic("env_set_priority() is not implemented yet...!!");
+	struct Env *Bavly = NULL;
+	envid2env(envID , &Bavly , 0);
+//	cprintf("SET pri Before if \n");
+	if(Bavly->env_status == ENV_READY){
+//		cprintf("SET pri in if \n");
+		acquire_kspinlock(&(ProcessQueues.qlock));
+		sched_remove_ready(Bavly);
+		release_kspinlock(&(ProcessQueues.qlock));
+		Bavly->priority = priority;
+		acquire_kspinlock(&(ProcessQueues.qlock));
+		sched_insert_ready(Bavly);
+		release_kspinlock(&(ProcessQueues.qlock));
+	}
+	else{
+//		cprintf("SET pri in else \n");
+
+		Bavly->priority = priority;
+
+	}
+//	cprintf("SET pri END \n");
+
 }
 void sched_set_starv_thresh(uint32 starvThresh)
 {
 	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #1 sched_set_starv_thresh
 	//Your code is here
 	//Comment the following line
-	panic("sched_set_starv_thresh() is not implemented yet...!!");
+	// panic("sched_set_starv_thresh() is not implemented yet...!!");
+	Threshold = starvThresh;
 }
+

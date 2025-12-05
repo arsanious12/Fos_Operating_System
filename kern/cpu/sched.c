@@ -221,21 +221,36 @@ void sched_init_BSD(uint8 numOfLevels, uint8 quantum)
 //======================================
 void sched_init_PRIRR(uint8 numOfPriorities, uint8 quantum, uint32 starvThresh)
 {
-	{
+#if USE_KHEAP
+//	    cprintf("init 1\n");
 		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #2 sched_init_PRIRR
 		//Your code is here
 		//Comment the following line
-		panic("sched_init_PRIRR() is not implemented yet...!!");
+		//panic("sched_init_PRIRR() is not implemented yet...!!");
+	   sched_delete_ready_queues();
+//	   cprintf("Queue deleted ! \n");
+	   ProcessQueues.env_ready_queues = kmalloc(sizeof(struct Env_Queue) * numOfPriorities);
+	   quantums = kmalloc(sizeof(uint8));
+	   for (int i=0;i<numOfPriorities;i++){
+	      init_queue(&(ProcessQueues.env_ready_queues[i]));
 
+//	      cprintf("%d\n" ,queue_size(&(ProcessQueues.env_ready_queues[i])));
+	   }
 
+//	   cprintf("init After Loop\n");
+       num_of_ready_queues = numOfPriorities;
+       sched_set_starv_thresh(starvThresh);
+       kclock_set_quantum(quantum);
+       quantums[0] = quantum;
+//       cprintf("init END \n");
 
-	}
 	//=========================================
 	//DON'T CHANGE THESE LINES=================
 	uint16 cnt0 = kclock_read_cnt0_latch() ; //read after write to ensure it's set to the desired value
 	cprintf("*	PRIORITY RR scheduler with initial clock = %d\n", cnt0);
 	mycpu()->scheduler_status = SCH_STOPPED;
 	scheduler_method = SCH_PRIRR;
+#endif
 	//=========================================
 	//=========================================
 }
@@ -306,6 +321,7 @@ struct Env* fos_scheduler_BSD()
 //=============================
 struct Env* fos_scheduler_PRIRR()
 {
+//	cprintf("Next 1\n");
 	/*To protect process Qs (or info of current process) in multi-CPU************************/
 	if(!holding_kspinlock(&ProcessQueues.qlock))
 		panic("fos_scheduler_PRIRR: q.lock is not held by this CPU while it's expected to be.");
@@ -313,7 +329,27 @@ struct Env* fos_scheduler_PRIRR()
 	//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #3 fos_scheduler_PRIRR
 	//Your code is here
 	//Comment the following line
-	panic("fos_scheduler_PRIRR() is not implemented yet...!!");
+	//panic("fos_scheduler_PRIRR() is not implemented yet...!!");
+	struct Env *Bavly = get_cpu_proc();
+//	cprintf("Next After if \n");
+	if(Bavly != NULL){
+//		cprintf("Next in Bavly != NULL \n");
+
+		sched_insert_ready(Bavly);
+
+
+	}
+	struct Env *next =  NULL;
+	for(int i = 0 ; i < num_of_ready_queues;i++){
+		if(queue_size(&(ProcessQueues.env_ready_queues[i])) > 0) {
+
+			next = dequeue(&(ProcessQueues.env_ready_queues[i]));
+//             cprintf("%d\n" , next->priority);
+			break;
+		}
+	}
+	kclock_set_quantum(quantums[0]);
+	return next;
 }
 
 //========================================
@@ -327,9 +363,18 @@ void clock_interrupt_handler(struct Trapframe* tf)
 		//TODO: [PROJECT'25.IM#4] CPU SCHEDULING - #4 clock_interrupt_handler
 		//Your code is here
 		//Comment the following line
-		panic("clock_interrupt_handler() is not implemented yet...!!");
+		//panic("clock_interrupt_handler() is not implemented yet...!!");
 
-
+		      for(int i=1;i<num_of_ready_queues;i++){
+		            struct Env * ptr_env=NULL;
+		            LIST_FOREACH(ptr_env,&(ProcessQueues.env_ready_queues[i]))
+		            {
+		                if(++(ptr_env->nClocks)>Threshold){
+		                    env_set_priority(ptr_env->env_id,(ptr_env->priority)-1);
+		                    ptr_env->nClocks=0;
+		                }
+		            }
+		        }
 
 	}
 
@@ -362,53 +407,49 @@ void clock_interrupt_handler(struct Trapframe* tf)
 // [9] Update LRU Timestamp of WS Elements
 //	  (Automatically Called Every Quantum in case of LRU Time Approx)
 //===================================================================
-
-
-
-
 void update_WS_time_stamps()
 {
-	cprintf("in time stamp\n");
-	//cprintf("%d\n",0>>1);
-	struct Env* e = get_cpu_proc();
-	//env_page_ws_print(e);
-	//for(int i = 0 ; i<1024;i++){
-		//struct Env *e=&envs[i];
-		//if(e->env_status == ENV_FREE)
-			//continue; //skip free env
-		//if(LIST_EMPTY(&e->page_WS_list))
-			//continue; // skip if no working set
-		struct WorkingSetElement *wst=NULL;
-		//cprintf("AFTER\n");
-		LIST_FOREACH( wst , &e->page_WS_list)
-		{
-			//cprintf("Time Stamp BEFORE : %d\n",wst->time_stamp);
-			wst->time_stamp>>=1; //shift wst right
-			//cprintf("Time Stamp AFTER : %d\n",wst->time_stamp);
-			uint32 pe=pt_get_page_permissions(e->env_page_directory,wst->virtual_address);
-			int ac=0;
-			if(pe&PERM_USED) //check for recently used or not
-			  ac=1;
-			if(ac){
-				wst->time_stamp|=0x80000000; //set MSB 3lshan a mark ano recently used
-				pt_set_page_permissions(e->env_page_directory,wst->virtual_address,0,PERM_USED); //3lshan a3mel clear ll iteration elly gaya
-
-			}
-			//cprintf("In Con\n");
-			//cprintf("\n");
-
-		//}
-
+    cprintf("in time stamp\n");
+    //cprintf("%d\n",0>>1);
+    struct Env* e = get_cpu_proc();
+    //env_page_ws_print(e);
+    //for(int i = 0 ; i<1024;i++){
+	//struct Env e=&envs[i];
+	//if(e->env_status == ENV_FREE)
+	//continue; //skip free env
+	//if(LIST_EMPTY(&e->page_WS_list))
+	//continue; // skip if no working set
+	struct WorkingSetElement *wst= NULL;
+	//cprintf("AFTER\n");
+	LIST_FOREACH( wst , &e->page_WS_list)
+	{
+		//cprintf("Time Stamp BEFORE : %d\n",wst->time_stamp);
+		wst->time_stamp>>=1; //shift wst right
+		//cprintf("Time Stamp AFTER : %d\n",wst->time_stamp);
+		uint32 pe=pt_get_page_permissions(e->env_page_directory,wst->virtual_address);
+		int ac=0;
+		if(pe&PERM_USED) //check for recently used or not
+		  ac=1;
+		if(ac){
+			wst->time_stamp|=0x80000000; //set MSB 3lshan a mark ano recently used
+			pt_set_page_permissions(e->env_page_directory,wst->virtual_address,0,PERM_USED); //3lshan a3mel clear ll iteration elly gaya
 
 	}
+		//cprintf("In Con\n");
+		//cprintf("\n");
 
-		//env_page_ws_print(e);
+	//}
+
+
+}
+
+        //env_page_ws_print(e);
 
 
 
-	//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #1 update_WS_time_stamps
-	//Your code is here
-	//Comment the following line
-	//panic("update_WS_time_stamps is not implemented yet...!!");
+    //TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #1 update_WS_time_stamps
+    //Your code is here
+    //Comment the following line
+    //panic("update_WS_time_stamps is not implemented yet...!!");
 
 }

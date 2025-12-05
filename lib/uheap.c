@@ -96,7 +96,7 @@ void* malloc(uint32 size)
 	if(size<=DYN_ALLOC_MAX_BLOCK_SIZE){
 		uint32 vra=(uint32)alloc_block(size);
 		return (uint32 *)vra;
-		}
+	}
 	/////////////////////////////page///////////////////////////////////////////////
 
 	else{
