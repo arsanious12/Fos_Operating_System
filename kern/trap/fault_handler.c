@@ -494,7 +494,7 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 		uint32 wsSize = LIST_SIZE(&(faulted_env->page_WS_list));
 		if(wsSize < (faulted_env->page_WS_max_size))
 		{
-			cprintf("//////////////Before pl////////////////");
+			//cprintf("//////////////Before pl////////////////");
 			//env_page_ws_print(faulted_env);
 			//env_page_ws_print(faulted_env);
 			fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
