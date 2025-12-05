@@ -528,19 +528,19 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 				  	struct FrameInfo*fr=get_frame_info(e->env_page_directory,victimWSElement->virtual_address,&p);
 				  	pf_update_env_page(e,victimWSElement->virtual_address,fr);
 				}
-				struct WorkingSetElement *NNN = LIST_NEXT(victimWSElement);
-				if(NNN==NULL){
-				 cprintf("FIFO\n");
-				 NNN=LIST_FIRST(&(e->page_WS_list));
-				}
+//				struct WorkingSetElement *NNN = LIST_NEXT(victimWSElement);
+//				if(NNN==NULL){
+//				 cprintf("FIFO\n");
+//				 NNN=LIST_FIRST(&(e->page_WS_list));
+//				}
 				fault_va = ROUNDDOWN(fault_va, PAGE_SIZE);
 				unmap_frame(e->env_page_directory,victimWSElement->virtual_address);
 				//LIST_REMOVE(&(e->page_WS_list),victimWSElement);
 				cprintf("List of size AFTER : %d\n",LIST_SIZE(&(e->page_WS_list)));
-				if(LIST_EMPTY(&(e->page_WS_list)))
-				  e->page_last_WS_element=NULL;
-				else
-				 e->page_last_WS_element=NNN;
+//				if(LIST_EMPTY(&(e->page_WS_list)))
+//				  e->page_last_WS_element=NULL;
+//				else
+//				 e->page_last_WS_element=NNN;
 
 				struct FrameInfo *NewFrame=NULL;
 				allocate_frame(&NewFrame);
@@ -574,18 +574,21 @@ void page_fault_handler(struct Env * faulted_env, uint32 fault_va)
 						if(iter==newElem)
 							break;
 					}
+					victimWSElement=LIST_FIRST(&(e->page_WS_list));
 					//LIST_INSERT_TAIL(&(e->page_WS_list),newElem);
 					uint32 curSize = LIST_SIZE(&e->page_WS_list);
 					//if (curSize == e->page_WS_max_size){
 					//e->page_last_WS_element = (struct WorkingSetElement*)LIST_FIRST(&e->page_WS_list);
 					//}
+					cprintf("AFTER: \n");
+					env_page_ws_print(e);
 				}else{
 					cprintf("PPPP\n");
 				unmap_frame(e->env_page_directory, fault_va);
 				env_exit();
 				}
-				cprintf("AFTER: \n");
-				env_page_ws_print(e);
+//				cprintf("AFTER: \n");
+//				env_page_ws_print(e);
 				//TODO: [PROJECT'25.IM#6] FAULT HANDLER II - #3 Modified Clock Replacement
 				//Your code is here
 				//Comment the following line
