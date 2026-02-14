@@ -334,9 +334,7 @@ struct Env* fos_scheduler_PRIRR()
 //	cprintf("Next After if \n");
 	if(Bavly != NULL){
 //		cprintf("Next in Bavly != NULL \n");
-
 		sched_insert_ready(Bavly);
-
 
 	}
 	struct Env *next =  NULL;
