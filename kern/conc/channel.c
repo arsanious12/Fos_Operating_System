@@ -18,6 +18,7 @@ void init_channel(struct Channel *chan, char *name)
 {
 	strcpy(chan->name, name);
 	init_queue(&(chan->queue));
+	
 }
 
 //===============================
